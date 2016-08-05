@@ -1,0 +1,16 @@
+#!/usr/bin/ruby
+require_relative '../lib/tmd.rb'
+
+f = ARGV[0]
+if !f || !File.exists?(f)
+	puts "Invalid file: #{f}"
+	exit
+end
+
+$tmd = TMD::Processor.new
+$tmd._info("PROCESSING #{f}")
+
+$tmd.vars[:include_paths] << File.realdirpath(File.dirname(f))
+
+output = $tmd.process(IO.readlines(f))
+puts output
