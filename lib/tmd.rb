@@ -184,6 +184,7 @@ module TMD
 		# @param Boolean keep_end If true, returns the unparsed portion of the argument
 		# string (even if it's empty). This can be used to determine custom delimiters.
 		# @return Array Argument values. Last value is the remaining portion of the initial string.
+		# @todo handle `arg1, arg2 {` (e.g. no parenthesis enclosing args)
 		def parse_args(arg_str, keep_end = false)
 			args = []
 			state = [0]
@@ -371,7 +372,7 @@ module TMD
 				args << tokens[i..tokens.length].join('')
 			end
 
-			# @todo cleanup
+			_trace "parse_args(#{arg_str}, #{keep_end}): #{args.inspect}"
 			return args
 		end
 
@@ -400,6 +401,7 @@ module TMD
 			macro_handler = nil
 
 			block = nil
+			ext_line = nil
 
 			lines.each do |line|
 				if line.is_a?(Block)
@@ -408,6 +410,19 @@ module TMD
 				end
 
 				line = line.rstrip
+				# if line end in \, buffer and continue to next line;
+				# join buffered line once \ no longer at end
+				if line[-1] == '\\' && line[-2] != '\\'
+					if ext_line
+						ext_line += line[0...line.length-1]
+					else
+						ext_line = line[0...line.length-1]
+					end
+					next
+				elsif ext_line
+					line = ext_line + line
+					ext_line = nil
+				end
 				oline = line
 
 				indent = 0
@@ -428,7 +443,7 @@ module TMD
 					idx = line.index(' ') if !idx
 					idx = line.length if !idx
 
-					macro = line[1..idx-1]
+					macro = line[1..idx-1].strip
 					args = line[idx..line.length]
 					macro_handler = @macros[macro]
 					if macro_handler
@@ -615,6 +630,11 @@ module TMD
 					end
 					buff << fmt_line(line)
 				end
+			end
+
+			# @todo how to clean up dangler?
+			if ext_line
+				line = ext_line
 			end
 
 			# close out
