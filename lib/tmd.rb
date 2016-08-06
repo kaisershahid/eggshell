@@ -3,6 +3,72 @@ module TMD
 	COLLECT = 1
 	DONE = 2
 
+	module MacroHandler
+		def set_parser(tmd)
+		end
+
+		def start(macname, args, depth, buffer)
+		end
+
+		def collect(line, depth)
+		end
+
+		def finish(macname, depth)
+		end
+
+		def process(buffer, macname, args, lines, indent)
+		end
+	end
+
+	# For complex nested content, use the block to execute content correctly.
+	# Quick examples: nested loops, conditional statements.
+	class Block
+		def initialize(macro, handler, args, depth)
+			@stack = [self]
+			@lines = []
+			@macro = macro
+			@handler = handler
+			@args = args
+			@delim = @args.pop.strip
+
+			# reverse, and swap out
+			if @delim[0] == '{'
+				@delim = @delim.reverse.gsub(/\{/, '}')
+			else
+				@delim = nil
+			end
+
+			@depth = depth
+		end
+
+		attr_reader :depth, :lines, :delim
+
+		def cur
+			@stack[@stack.length-1]
+		end
+
+		def push(block)
+			@stack << block
+			@lines << block
+		end
+
+		def pop()
+			@stack.pop
+		end
+
+		def collect(entry)
+			@stack[@stack.length-1].lines << entry
+		end
+
+		def process(buffer)
+			@handler.process(buffer, @macro, @args, @lines, @depth)
+		end
+
+		def inspect
+			"<BLOCK #{@macro} (#{@depth}) #{@handler} >"
+		end
+	end
+
 	class Processor
 		def initialize
 			@vars = {:references => {}, :toc => [], :include_paths => [], 'log' => '1'}
@@ -114,7 +180,11 @@ module TMD
 		# # Variable replacements only happen within quoted strings;
 		# 	# Replacements such as `"${var}"` will retain the type of the variable;
 		# # Whatever gets parsed as a value is valid for array values and hash key-value pairs.
-		def parse_args(arg_str)
+		#
+		# @param Boolean keep_end If true, returns the unparsed portion of the argument
+		# string (even if it's empty). This can be used to determine custom delimiters.
+		# @return Array Argument values. Last value is the remaining portion of the initial string.
+		def parse_args(arg_str, keep_end = false)
 			args = []
 			state = [0]
 			d = 0
@@ -281,12 +351,26 @@ module TMD
 							state[d] = 0
 							last_state = 0
 							args << mval
+							mval = nil
 						else
 							mval += tok
 						end
 					end
 				end
 			end
+
+			if last_state == MAP_OP && mkey && mval
+				args[args.length-1][mkey] = mval
+			elsif last_state == ARR_OP && mval
+				args[args.length-1] << mval
+			elsif mval
+				args << mval
+			end
+
+			if keep_end
+				args << tokens[i..tokens.length].join('')
+			end
+
 			# @todo cleanup
 			return args
 		end
@@ -295,9 +379,9 @@ module TMD
 		TAB_SPACE = '    '
 
 		# Iterates through each line of a source document and processes block-level items
-		# @param Fixnum macro_indent For macro processing. Allows accurate tracking of nested
+		# @param Fixnum call_depth For macro processing. Allows accurate tracking of nested
 		# block macros.
-		def process(lines, macro_indent = 0)
+		def process(lines, call_depth = 0)
 			buff = []
 			order_stack = []
 			otype_stack = []
@@ -312,9 +396,17 @@ module TMD
 			cap_var = nil
 
 			macro = nil
+			macro_blocks = []
 			macro_handler = nil
 
+			block = nil
+
 			lines.each do |line|
+				if line.is_a?(Block)
+					line.process(buff)
+					next
+				end
+
 				line = line.rstrip
 				oline = line
 
@@ -331,14 +423,7 @@ module TMD
 				end
 
 				# macro processing
-				if macro_handler
-					stat = macro_handler.collect(line, macro_indent + indent)
-					if stat == TMD::DONE
-						macro_handler = nil
-						macro = nil
-					end
-					next
-				elsif line[0] == '@'
+				if line[0] == '@'
 					idx = line.index('(')
 					idx = line.index(' ') if !idx
 					idx = line.length if !idx
@@ -347,16 +432,32 @@ module TMD
 					args = line[idx..line.length]
 					macro_handler = @macros[macro]
 					if macro_handler
-						# assumes '@macro(...) {'
-						if args[-1] == '{'
-
-						stat = macro_handler.start(macro, args, macro_indent, buff)
-						if stat == TMD::DONE
-							macro_handler = nil
-							macro = nil
+						macro_depth = call_depth + indent
+						args = parse_args(args, true)
+						if args[-1].index('{')
+							if block
+								nblock = Block.new(macro, macro_handler, args, block.cur.depth + 1)
+								block.push(nblock)
+							else
+								block = Block.new(macro, macro_handler, args, macro_depth)
+							end
+						else
+							args.pop
+							macro_handler.process(buff, macro, args, nil, macro_depth)
 						end
 					else
 						_warn("macro not found: #{macro}")
+					end
+					next
+				elsif block
+					if line == block.cur.delim
+						lb = block.pop
+						if !block.cur
+							block.process(buff)
+							block = nil
+						end
+					else
+						block.collect(oline)
 					end
 					next
 				end

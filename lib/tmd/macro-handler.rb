@@ -19,17 +19,6 @@
 #
 # 
 module TMD::MacroHandler
-	def set_parser(tmd)
-	end
-
-	def start(macname, args, depth, buffer)
-	end
-
-	def collect(line, depth)
-	end
-
-	def finish(macname, depth)
-	end
 
 	module Defaults
 		# Macros startd:
@@ -98,6 +87,14 @@ module TMD::MacroHandler
 				tabs = "\t" * (depth-1) if depth > 0
 				@collbuff << "#{tabs}#{line}"
 				return TMD::COLLECT
+			end
+
+			def process(buffer, macname, args, lines, depth)
+				if macname == 'capture'
+					# @todo check args for fragment to parse
+					return if !lines
+					@tmd.vars[args[0]] = @tmd.process(lines, depth)
+				end
 			end
 		end
 
