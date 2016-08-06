@@ -96,6 +96,10 @@ module TMD
 			end
 		end
 
+		def _error(msg)
+			$stderr.write("[ERROR] #{msg}\n")
+		end
+
 		def _warn(msg)
 			$stderr.write("[WARN]  #{msg}\n")
 		end
