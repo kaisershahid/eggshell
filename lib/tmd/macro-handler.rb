@@ -19,12 +19,12 @@
 #
 # 
 module TMD::MacroHandler
-
 	module Defaults
-		# Macros startd:
+		# Macros:
 		# 
 		# - `include`
-		# - `capture_start`, `capture_end`
+		# - `capture`
+		# - `var`
 		class MHBasics
 			include TMD::MacroHandler
 
@@ -36,57 +36,7 @@ module TMD::MacroHandler
 
 			def set_parser(tmd)
 				@tmd = tmd
-			end
-
-			def start(macname, argstr, depth, buffer)
-				args = @tmd.parse_args(argstr)
-				case macname
-				when 'var'
-					key = args[0]
-					val = args[1]
-					if !name
-						@tmd.vars[key] = val
-					end
-				when 'include'
-					# @todo resolve relative path
-					# @todo ability to restrict absolute?
-					inc = args[0]
-					if inc[0] != '/'
-						if @tmd.vars[:include_paths].length > 0
-							inc = "#{@tmd.vars[:include_paths][0]}/#{inc}"
-						end
-					end
-					if File.exists?(inc)
-						lines = IO.readlines(inc)
-						buffer << @tmd.process(lines, depth + 1)
-					else
-						@tmd._warn("include: not found: #{inc}")
-					end
-				when 'capture'
-					@depth = depth
-					@capvar = args[0]
-					@collbuff = []
-					return TMD::COLLECT
-				when 'parse_test'
-					@tmd._info("parse_test: #{argstr} => #{args.inspect}")
-				end
-			end
-
-			def collect(line, depth)
-				if line == '@capture_end' && @depth == depth
-					lines = @collbuff
-					@collbuff = nil
-					@tmd.vars[@capvar] = @tmd.process(lines, @depth)
-					@capvar = nil
-					@depth = 0
-					return TMD::DONE
-				end
-
-				# insert one less tab if applicable
-				tabs = ''
-				tabs = "\t" * (depth-1) if depth > 0
-				@collbuff << "#{tabs}#{line}"
-				return TMD::COLLECT
+				@tmd.register_macro(self, 'capture', 'var', 'include', 'parse_test')
 			end
 
 			def process(buffer, macname, args, lines, depth)
@@ -94,6 +44,43 @@ module TMD::MacroHandler
 					# @todo check args for fragment to parse
 					return if !lines
 					@tmd.vars[args[0]] = @tmd.process(lines, depth)
+				elsif macname == 'var'
+					# @todo expand value if expression
+					puts "#{macname}: #{args[0]} =#{args[1]}"
+					@tmd.vars[args[0]] = args[1]
+				elsif macname == 'include'
+					paths = args[0]
+					if lines && lines.length > 0
+						paths = lines
+					end
+					do_include(paths, buffer, depth)
+				end
+			end
+
+			def do_include(paths, buff, depth)
+				paths = [paths] if !paths.is_a?(Array)
+				# @todo check all include paths?
+				paths.each do |inc|
+					inc = @tmd.parse_expr(inc.strip)
+					if inc[0] != '/'
+						if @tmd.vars[:include_paths].length > 0
+							inc = "#{@tmd.vars[:include_paths][0]}/#{inc}"
+						end
+						# @todo if :include_root, expand path and check that it's under the root, otherwise, sandbox
+					else
+						# sandboxed root include
+						if @tmd.vars[:include_root]
+							inc = "#{@tmd.vars[:include_root]}#{inc}"
+						end
+					end
+
+					if File.exists?(inc)
+						lines = IO.readlines(inc)
+						buff << @tmd.process(lines, depth + 1)
+						@tmd._debug("include: #{inc}")
+					else
+						@tmd._warn("include: not found: #{inc}")
+					end
 				end
 			end
 		end
@@ -107,12 +94,10 @@ module TMD::MacroHandler
 
 			def set_parser(tmd)
 				@tmd = tmd
+				@tmd.register_macro(self, 'loop', 'for', 'if', 'elsif', 'else')
 			end
 
-			def start(macname, argstr, depth, buffer)
-			end
-
-			def collect(line, depth)
+			def process(buffer, macname, args, lines, depth)
 			end
 		end
 	end
