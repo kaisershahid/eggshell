@@ -150,232 +150,232 @@ module TMD
 			return buff.join('')
 		end
 
-	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
-	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+)/
+		REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
+		REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+)/
 
-	LOG_OP = 2
-	LOG_LEVEL = 0
+		LOG_OP = 2
+		LOG_LEVEL = 0
 
-	OP_PRECEDENCE = {
-		'*' => 60, '/' => 60, '%' => 60,
-		'<<' => 55, '>>' => 55,
-		'<' => 54, '>' => 54, '<=' => 54, '=>' => 54,
-		'==' => 53, '!=' => 52,
-		'&' => 50,
-		'^' => 49,
-		'|' => 48,
-		'&&' => 45,
-		'||' => 44
-	}.freeze
+		OP_PRECEDENCE = {
+			'*' => 60, '/' => 60, '%' => 60,
+			'<<' => 55, '>>' => 55,
+			'<' => 54, '>' => 54, '<=' => 54, '=>' => 54,
+			'==' => 53, '!=' => 52,
+			'&' => 50,
+			'^' => 49,
+			'|' => 48,
+			'&&' => 45,
+			'||' => 44
+		}.freeze
 
-	# Normalizes a term.
-	# @param Object term If `String`, attempts to infer type (either `Fixnum`, `Float`, or `[:var, varname]`)
-	def term_val(term)
-		if term.is_a?(String)
-			if term.match(/^\d+$/)
-				return term.to_i
-			elsif term.match(/^\d*\.\d+$/)
-				return term.to_f
+		# Normalizes a term.
+		# @param Object term If `String`, attempts to infer type (either `Fixnum`, `Float`, or `[:var, varname]`)
+		def term_val(term)
+			if term.is_a?(String)
+				if term.match(/^\d+$/)
+					return term.to_i
+				elsif term.match(/^\d*\.\d+$/)
+					return term.to_f
+				end
+				return [:var, term]
 			end
-			return [:var, term]
+			return term
 		end
-		return term
-	end
 
-	# Inserts a term into the right-most operand.
-	# 
-	# Operator structure: `[:op, 'operator', 'left-term', 'right-term']
-	def op_insert(frag, term)
-		while frag[3].is_a?(Array)
-			frag = frag[3]
+		# Inserts a term into the right-most operand.
+		# 
+		# Operator structure: `[:op, 'operator', 'left-term', 'right-term']
+		def op_insert(frag, term)
+			while frag[3].is_a?(Array)
+				frag = frag[3]
+			end
+			frag[3] = term_val(term)
 		end
-		frag[3] = term_val(term)
-	end
 
-	# Restructures operands if new operator has higher predence than previous operator.
-	# @param String tok New operator.
-	# @param Array frag Operator fragment.
-	# @param Array stack Fragment stack.
-	def op_precedence(tok, frag, stack)
-		_trace "... OP_PRECEDENCE pre: #{frag.inspect}", LOG_OP
-		topfrag = frag
-		lptr = nil
-		# retrieve the right-most operand
-		while frag[3].is_a?(Array) && frag[3][0] == :op
-			lptr = frag
-			frag = frag[3]
-		end
-		lptr = topfrag if !lptr
-		_trace ">>> lptr = #{lptr.inspect}, frag = #{frag.inspect}", LOG_OP
+		# Restructures operands if new operator has higher predence than previous operator.
+		# @param String tok New operator.
+		# @param Array frag Operator fragment.
+		# @param Array stack Fragment stack.
+		def op_precedence(tok, frag, stack)
+			_trace "... OP_PRECEDENCE pre: #{frag.inspect}", LOG_OP
+			topfrag = frag
+			lptr = nil
+			# retrieve the right-most operand
+			while frag[3].is_a?(Array) && frag[3][0] == :op
+				lptr = frag
+				frag = frag[3]
+			end
+			lptr = topfrag if !lptr
+			_trace ">>> lptr = #{lptr.inspect}, frag = #{frag.inspect}", LOG_OP
 
-		if frag[0] == :op
-			p1 = OP_PRECEDENCE[tok]
-			p0 = OP_PRECEDENCE[frag[1]]
-			_trace "??? check OP_PRECEDENCE (#{tok} #{p1}, #{frag[1]} #{p0}", LOG_OP
-			if p1 > p0
-				_trace "^^^ bump up #{tok}", LOG_OP
-				frag[3] = [:op, tok, frag[3], nil]
+			if frag[0] == :op
+				p1 = OP_PRECEDENCE[tok]
+				p0 = OP_PRECEDENCE[frag[1]]
+				_trace "??? check OP_PRECEDENCE (#{tok} #{p1}, #{frag[1]} #{p0}", LOG_OP
+				if p1 > p0
+					_trace "^^^ bump up #{tok}", LOG_OP
+					frag[3] = [:op, tok, frag[3], nil]
+				else
+					_trace "___ no bump #{tok} (lptr = #{lptr.inspect}", LOG_OP
+					lptr[3] = [:op, tok, [:op, frag[1], frag[2], frag[3]], nil]
+				end
+				stack << topfrag
+				_trace "... new frag: #{frag.inspect} || #{stack.inspect}", LOG_OP
 			else
-				_trace "___ no bump #{tok} (lptr = #{lptr.inspect}", LOG_OP
-				lptr[3] = [:op, tok, [:op, frag[1], frag[2], frag[3]], nil]
+				_trace "<<< frag op.2b: stack = #{stack.inspect}", LOG_OP
+				stack << [:op, tok, frag, nil]
 			end
-			stack << topfrag
-			_trace "... new frag: #{frag.inspect} || #{stack.inspect}", LOG_OP
-		else
-			_trace "<<< frag op.2b: stack = #{stack.inspect}", LOG_OP
-			stack << [:op, tok, frag, nil]
 		end
-	end
 
-	def expr_struct(str)
-		puts "START: #{str}"
-		toks = str.split(REGEX_EXPR_STATEMENT)
-		state = [:nil]
-		d = 0
+		def expr_struct(str)
+			puts "START: #{str}"
+			toks = str.split(REGEX_EXPR_STATEMENT)
+			state = [:nil]
+			d = 0
 
-		# each element on the stack points to a nested level (so root is 0, first parenthesis is 1, second is 2, etc.)
-		# ptr points to the deepest level
-		stack = [[]]
-		ptr = stack[0]
-		term = nil
+			# each element on the stack points to a nested level (so root is 0, first parenthesis is 1, second is 2, etc.)
+			# ptr points to the deepest level
+			stack = [[]]
+			ptr = stack[0]
+			term = nil
 
-		i = 0
-		while (i < toks.length)
-			tok = toks[i]
-			i += 1
-			next if tok == ''
+			i = 0
+			while (i < toks.length)
+				tok = toks[i]
+				i += 1
+				next if tok == ''
 
-			if tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
-				_trace "** op: #{tok} -> #{term} (d=#{d})", LOG_OP
-				_trace "\t..ptr = #{ptr.inspect} (stack.length = #{stack.length})", LOG_OP
-				state << :op
-				d += 1
-				if term
-					if ptr.length == 0
-						ptr << [:op, tok, term_val(term), nil]
-						term = nil
-						_trace "frag op.0: #{ptr[-1].inspect}", LOG_OP
-					else
-						# @TODO this doesn't make sense. if there's a dangling term then there's a syntax error
-						# ... x + y z - a ==> 'z' would be the term before '-' for something like this to happen
-						last = ptr.pop
-						ptr << [:op, tok, last, term]
-						_trace "frag op.1: #{ptr[-1].inspect}", LOG_OP
-					end
-				else
-					if ptr.length > 0
-						_trace "frag op.2 (d=#{d})...", LOG_OP
-						frag = ptr.pop
-						# when you have x + y / ..., make it x + (y / ...)
-						_trace "frag op.2: #{tok} -- #{frag.inspect}", LOG_OP
-						op_precedence(tok, frag, ptr)
-					end
-				end
-				_trace' ** OP DONE **', LOG_OP
-			elsif tok == '('
-				if term
-					_trace'push fn ('
-					ptr << [:fn, term, []]
-					term = nil
-					state << :fnop
+				if tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
+					_trace "** op: #{tok} -> #{term} (d=#{d})", LOG_OP
+					_trace "\t..ptr = #{ptr.inspect} (stack.length = #{stack.length})", LOG_OP
+					state << :op
 					d += 1
-					arr = []
-					stack << arr
-					ptr = arr
-				else
-					_trace'push nest ('
-					state << :nest
-					d += 1
-					arr = []
-					stack << arr
-					ptr = arr
-				end
-				_trace "...... #{stack.inspect}"
-			elsif tok == ')'
-				lstate = state.pop
-				lstack = stack.pop
-				ptr = stack[-1]
-				d = state.length - 1
-				_trace "/#{lstate} ) (d=#{d}, lstack=#{lstack.inspect}"
-				_trace "\tstate = #{state.inspect}"
-				_trace "\tstack = #{stack.inspect} ===> ptr=#{ptr.inspect}"
-
-				if lstate == :nest
-					if state[d] == :fnop
-						lstack.each do |item|
-							ptr << item
+					if term
+						if ptr.length == 0
+							ptr << [:op, tok, term_val(term), nil]
+							term = nil
+							_trace "frag op.0: #{ptr[-1].inspect}", LOG_OP
+						else
+							# @TODO this doesn't make sense. if there's a dangling term then there's a syntax error
+							# ... x + y z - a ==> 'z' would be the term before '-' for something like this to happen
+							last = ptr.pop
+							ptr << [:op, tok, last, term]
+							_trace "frag op.1: #{ptr[-1].inspect}", LOG_OP
 						end
 					else
-						frag = ptr[-1]
-						if frag
-							op_insert(frag, lstack)
-						else
+						if ptr.length > 0
+							_trace "frag op.2 (d=#{d})...", LOG_OP
+							frag = ptr.pop
+							# when you have x + y / ..., make it x + (y / ...)
+							_trace "frag op.2: #{tok} -- #{frag.inspect}", LOG_OP
+							op_precedence(tok, frag, ptr)
+						end
+					end
+					_trace' ** OP DONE **', LOG_OP
+				elsif tok == '('
+					if term
+						_trace'push fn ('
+						ptr << [:fn, term, []]
+						term = nil
+						state << :fnop
+						d += 1
+						arr = []
+						stack << arr
+						ptr = arr
+					else
+						_trace'push nest ('
+						state << :nest
+						d += 1
+						arr = []
+						stack << arr
+						ptr = arr
+					end
+					_trace "...... #{stack.inspect}"
+				elsif tok == ')'
+					lstate = state.pop
+					lstack = stack.pop
+					ptr = stack[-1]
+					d = state.length - 1
+					_trace "/#{lstate} ) (d=#{d}, lstack=#{lstack.inspect}"
+					_trace "\tstate = #{state.inspect}"
+					_trace "\tstack = #{stack.inspect} ===> ptr=#{ptr.inspect}"
+
+					if lstate == :nest
+						if state[d] == :fnop
 							lstack.each do |item|
-								_trace "#{d}: reinserting #{item.inspect}"
 								ptr << item
 							end
+						else
+							frag = ptr[-1]
+							if frag
+								op_insert(frag, lstack)
+							else
+								lstack.each do |item|
+									_trace "#{d}: reinserting #{item.inspect}"
+									ptr << item
+								end
+							end
+						end
+					elsif lstate == :fnop
+						if term
+							_trace "last term: #{term}"
+							lstack << term
+							term = nil
+						end
+						_trace "\tptr=#{ptr.inspect}"
+						ptr[-1][2] = lstack
+						#ptr = lstack
+					end
+				elsif tok == ','
+					_trace ",, (state = #{state.inspect}"
+					if state[d-1] == :fnop
+						if term
+							ptr << term
+							term = nil
 						end
 					end
-				elsif lstate == :fnop
-					if term
-						_trace "last term: #{term}"
-						lstack << term
-						term = nil
-					end
-					_trace "\tptr=#{ptr.inspect}"
-					ptr[-1][2] = lstack
-					#ptr = lstack
-				end
-			elsif tok == ','
-				_trace ",, (state = #{state.inspect}"
-				if state[d-1] == :fnop
-					if term
+				#elsif tok == '#'
+				#elsif tok == "'"
+				elsif tok.strip != ''
+					_trace "tok: #{tok} (d=#{d}) ==> ptr=#{ptr.inspect}"
+					_trace "\tstate=#{state.inspect}"
+					_trace "\tstack=#{stack.inspect}"
+					#_trace "\tstate = #{state.inspect}"
+					term = term ? term + tok : tok
+
+					if state[d] == :op
+						if ptr[-1] == nil
+							# @throw exception
+						elsif ptr[-1][0] == :op
+							frag = ptr[-1]
+							op_insert(frag, term)
+							term = nil
+						else
+							# ???
+						end
+						state.pop
+						d -= 1
+					elsif state[d-1] == :fnop
+						_trace "**** fnop arg: #{term} (#{state[d]}"
 						ptr << term
 						term = nil
+						next
 					end
 				end
-			#elsif tok == '#'
-			#elsif tok == "'"
-			elsif tok.strip != ''
-				_trace "tok: #{tok} (d=#{d}) ==> ptr=#{ptr.inspect}"
-				_trace "\tstate=#{state.inspect}"
-				_trace "\tstack=#{stack.inspect}"
-				#_trace "\tstate = #{state.inspect}"
-				term = term ? term + tok : tok
+			end
 
-				if state[d] == :op
-					if ptr[-1] == nil
-						# @throw exception
-					elsif ptr[-1][0] == :op
-						frag = ptr[-1]
-						op_insert(frag, term)
-						term = nil
-					else
-						# ???
-					end
-					state.pop
-					d -= 1
-				elsif state[d-1] == :fnop
-					_trace "**** fnop arg: #{term} (#{state[d]}"
-					ptr << term
-					term = nil
-					next
+			if state[d] == :op && term
+				_trace "term: #{term} ==> #{ptr.inspect}"
+				frag = ptr[-1]
+				if frag[0] == :op
+					op_insert(frag, term)
 				end
 			end
-		end
 
-		if state[d] == :op && term
-			_trace "term: #{term} ==> #{ptr.inspect}"
-			frag = ptr[-1]
-			if frag[0] == :op
-				op_insert(frag, term)
-			end
+			#inspect(stack[0])
+			#puts "STACK: #{stack[0].inspect}"
+			return stack[0]
 		end
-
-		#inspect(stack[0])
-		#puts "STACK: #{stack[0].inspect}"
-		return stack[0]
-	end
 
 		P_OP = 1
 		P_CL = 2
