@@ -151,7 +151,7 @@ module TMD
 		end
 
 		REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
-		REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+)/
+		REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:)/
 
 		LOG_OP = 2
 		LOG_LEVEL = 0
@@ -164,18 +164,23 @@ module TMD
 			'&' => 50,
 			'^' => 49,
 			'|' => 48,
+			'+' => 47,
+			'-' => 47,
 			'&&' => 45,
 			'||' => 44
 		}.freeze
 
 		# Normalizes a term.
 		# @param Object term If `String`, attempts to infer type (either `Fixnum`, `Float`, or `[:var, varname]`)
-		def term_val(term)
+		# @param Boolean preserve_str If true and input is string but not number, return string literal.
+		def term_val(term, preserve_str = false)
 			if term.is_a?(String)
 				if term.match(/^\d+$/)
 					return term.to_i
 				elsif term.match(/^\d*\.\d+$/)
 					return term.to_f
+				elsif preserve_str
+					return term
 				end
 				return [:var, term]
 			end
@@ -228,7 +233,6 @@ module TMD
 		end
 
 		def expr_struct(str)
-			puts "START: #{str}"
 			toks = str.split(REGEX_EXPR_STATEMENT)
 			state = [:nil]
 			d = 0
@@ -239,15 +243,87 @@ module TMD
 			ptr = stack[0]
 			term = nil
 
+			quote_delim = nil
+			map_key = nil
+			last_key = []
+
 			i = 0
 			while (i < toks.length)
 				tok = toks[i]
 				i += 1
 				next if tok == ''
+				#puts ">>>>>>> (#{d})#{state[d]}, #{tok}|#{i}"
 
-				if tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
-					_trace "** op: #{tok} -> #{term} (d=#{d})", LOG_OP
-					_trace "\t..ptr = #{ptr.inspect} (stack.length = #{stack.length})", LOG_OP
+				# assumes term has been initialized through open quote
+				# @todo any other contexts that \ is useful?
+				if tok == '\\'
+					i += 1 if toks[i] == ''
+					term += toks[i]
+					i += 1
+				elsif state[d] == :quote
+					if tok != quote_delim
+						term += tok
+					else
+						quote_delim = nil
+						state.pop
+						d -= 1
+						if state[d] != :map
+							ptr << [:str, term]
+							term = nil
+						end
+					end
+				elsif tok == "'" || tok == '"'
+					state << :quote
+					d += 1
+					quote_delim = tok
+					term = ''
+				elsif tok == '{'
+					state << :map
+					d += 1
+					map = {}
+					stack << map
+					ptr = map
+				elsif tok == '['
+					state << :arr
+					d += 1
+					arr = []
+					stack << arr
+					ptr = arr
+				elsif state[d] == :map && tok == ':'
+					if map_key # preserve function
+						term += ':'
+					else
+						map_key = term
+						term = nil
+					end
+				elsif state[d] == :map && tok == '}'
+					# @todo validate & convert term?
+					ptr[term_val(map_key, true)] = term
+					term = nil
+					# @todo put this as [:map, map]?
+					state.pop
+					d -= 1
+					map = stack.pop
+					ptr = stack[-1]
+					ptr << map
+				elsif state[d] == :arr && tok == ']'
+					if term
+						ptr << term_val(term)
+						term = nil
+					end
+					# @todo put this as [:arr, arr]?
+					state.pop
+					d -= 1
+					arr = stack.pop
+					ptr = stack[-1]
+					if state[d] != :map
+						ptr << arr
+					else
+						term = arr
+					end
+				elsif tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
+					#_trace "** op: #{tok} -> #{term} (d=#{d})", LOG_OP
+					#_trace "\t..ptr = #{ptr.inspect} (stack.length = #{stack.length})", LOG_OP
 					state << :op
 					d += 1
 					if term
@@ -260,30 +336,39 @@ module TMD
 							# ... x + y z - a ==> 'z' would be the term before '-' for something like this to happen
 							last = ptr.pop
 							ptr << [:op, tok, last, term]
-							_trace "frag op.1: #{ptr[-1].inspect}", LOG_OP
+							#_trace "frag op.1: #{ptr[-1].inspect}", LOG_OP
 						end
 					else
 						if ptr.length > 0
-							_trace "frag op.2 (d=#{d})...", LOG_OP
+							#_trace "frag op.2 (d=#{d})...", LOG_OP
 							frag = ptr.pop
 							# when you have x + y / ..., make it x + (y / ...)
-							_trace "frag op.2: #{tok} -- #{frag.inspect}", LOG_OP
+							#_trace "frag op.2: #{tok} -- #{frag.inspect}", LOG_OP
 							op_precedence(tok, frag, ptr)
 						end
 					end
 					_trace' ** OP DONE **', LOG_OP
 				elsif tok == '('
 					if term
-						_trace'push fn ('
-						ptr << [:fn, term, []]
+						#_trace'push fn ('
+						#ptr << [:fn, term, []]
+						term = [:fn, term, []]
+						if state[d] != :map
+							ptr << term
+						else
+							ptr[map_key] = term
+							last_key << map_key
+							map_key = nil
+						end
 						term = nil
+
 						state << :fnop
 						d += 1
 						arr = []
 						stack << arr
 						ptr = arr
 					else
-						_trace'push nest ('
+						#_trace'push nest ('
 						state << :nest
 						d += 1
 						arr = []
@@ -296,15 +381,17 @@ module TMD
 					lstack = stack.pop
 					ptr = stack[-1]
 					d = state.length - 1
-					_trace "/#{lstate} ) (d=#{d}, lstack=#{lstack.inspect}"
-					_trace "\tstate = #{state.inspect}"
-					_trace "\tstack = #{stack.inspect} ===> ptr=#{ptr.inspect}"
+					# _trace "/#{lstate} ) (d=#{d}, lstack=#{lstack.inspect}"
+					# _trace "\tstate = #{state.inspect}"
+					# _trace "\tstack = #{stack.inspect} ===> ptr=#{ptr.inspect}"
 
 					if lstate == :nest
 						if state[d] == :fnop
 							lstack.each do |item|
 								ptr << item
 							end
+						elsif state[d] == :map
+							term = lstack
 						else
 							frag = ptr[-1]
 							if frag
@@ -318,28 +405,38 @@ module TMD
 						end
 					elsif lstate == :fnop
 						if term
-							_trace "last term: #{term}"
 							lstack << term
 							term = nil
 						end
-						_trace "\tptr=#{ptr.inspect}"
-						ptr[-1][2] = lstack
-						#ptr = lstack
+
+						if state[d] == :map
+							map_key = last_key.pop
+							term = ptr[map_key]
+							term[2] = lstack
+						else
+							ptr[-1][2] = lstack
+						end
 					end
 				elsif tok == ','
-					_trace ",, (state = #{state.inspect}"
-					if state[d-1] == :fnop
-						if term
-							ptr << term
+					#_trace ",, (state = #{state.inspect}"
+					# @todo if term is nil and ptr.length == 0, assume an error
+					if term
+						if state[d] == :map
+							# @todo map validation & convert term?
+							puts "map entry: #{map_key}: #{term}"
+							ptr[term_val(map_key, true)] = term
+							map_key = nil
+							term = nil
+						else
+							ptr << term_val(term)
 							term = nil
 						end
 					end
 				#elsif tok == '#'
-				#elsif tok == "'"
 				elsif tok.strip != ''
-					_trace "tok: #{tok} (d=#{d}) ==> ptr=#{ptr.inspect}"
-					_trace "\tstate=#{state.inspect}"
-					_trace "\tstack=#{stack.inspect}"
+					# _trace "tok: #{tok} (d=#{d}) ==> ptr=#{ptr.inspect}"
+					# _trace "\tstate=#{state.inspect}"
+					# _trace "\tstack=#{stack.inspect}"
 					#_trace "\tstate = #{state.inspect}"
 					term = term ? term + tok : tok
 
@@ -355,8 +452,9 @@ module TMD
 						end
 						state.pop
 						d -= 1
+					elsif state[d] == :map
 					elsif state[d-1] == :fnop
-						_trace "**** fnop arg: #{term} (#{state[d]}"
+						#_trace "**** fnop arg: #{term} (#{state[d]}"
 						ptr << term
 						term = nil
 						next
@@ -365,16 +463,18 @@ module TMD
 			end
 
 			if state[d] == :op && term
-				_trace "term: #{term} ==> #{ptr.inspect}"
 				frag = ptr[-1]
 				if frag[0] == :op
 					op_insert(frag, term)
 				end
+			elsif state[d] == :quote
+				ptr << [:str, term]
 			end
 
-			#inspect(stack[0])
-			#puts "STACK: #{stack[0].inspect}"
 			return stack[0]
+		end
+
+		def expr_eval(expr)
 		end
 
 		P_OP = 1
