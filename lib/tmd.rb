@@ -189,6 +189,23 @@ module TMD
 				end
 
 				oline = line
+
+				indent_level = 0
+				indents = ''
+				if line[0] == TAB || line[0..3] == TAB_SPACE
+					tab = line[0] == TAB ? TAB : TAB_SPACE
+					indent_level += 1
+					offset = tab.length
+					$stderr.write "\t[#{offset}, #{offset+tab.length}]\n"
+					while line[offset...offset+tab.length] == tab
+						indent_level += 1
+						puts "\t>#{indent_level}"
+						offset += tab.length
+					end
+					indents = line[0...offset]
+					line = line[offset..-1]
+				end
+
 				line = line.rstrip
 				line_end = ''
 				if line.length < oline.length
@@ -226,20 +243,6 @@ module TMD
 					ext_line = nil
 				end
 				oline = line
-
-				indent = 0
-				indent_char = ''
-				if line[0] == TAB || line[0..3] == TAB_SPACE
-					tab = line[0] == TAB ? TAB : TAB_SPACE
-					offset = tab.length
-					indent += 1
-					while line.index(tab, offset)
-						indent += 1
-						offset += tab.length
-					end
-					line = line[offset..-1]
-					indent_char = line[0..offset]
-				end
 
 				# macro processing
 				if line[0] == '@'
@@ -295,13 +298,14 @@ module TMD
 				end
 
 				if block_handler
-					stat = block_handler.collect(line, buff, indent_char, indent)
+					stat = block_handler.collect(line, buff, indents, indent_level)
 					if stat != TMD::BlockHandler::COLLECT
 						block_handler = nil
 						if stat == TMD::BlockHandler::RETRY
 							i -= 1
 						end
 					end
+					line = nil
 					next
 				end
 
@@ -338,7 +342,7 @@ module TMD
 
 				block_handler = @blocks[block_type]
 				block_handler = @noop_block if !block_handler 
-				stat = block_handler.start(block_type, line, buff, indent_char, indent)
+				stat = block_handler.start(block_type, line, buff, indents, indent_level)
 				if stat != TMD::BlockHandler::COLLECT
 					block_handler = nil
 					if stat == TMD::BlockHandler::RETRY
@@ -349,53 +353,6 @@ module TMD
 					line = nil
 					next
 				end
-
-				# if line[0..1] == '>>'
-				# 	if !in_dl
-				# 		in_dl = true
-				# 		buff << "<dl class='#{@vars['dd.class']}'>"
-				# 	end
-				# 	key, val = line[2..line.length].split('::', 2)
-				# 	key = fmt_line(key)
-				# 	val = fmt_line(val)
-				# 	#$stderr.write "dl: #{key} => #{val}\n"
-				# 	buff << "<dt class='#{@vars['dt.class']}'>#{key}</dt><dd class='#{@vars['dd.class']}'>#{val}</dd>"
-				# 	next
-				# end
-
-				# if line == ''
-				# 	if in_dl
-				# 		buff << '</dl>'
-				# 		in_dl = false
-				# 	elsif order_stack.length > 0
-				# 		d = otype_stack.length
-				# 		c = 1
-				# 		otype_stack.each do |type|
-				# 			ident = d - c
-				# 			order_stack << "#{"\t" * ident}</#{type}>#{c == d ? '' : "</li>"}"
-				# 			c += 1
-				# 		end
-				# 		buff << order_stack.join("\n")
-				# 		order_stack = []
-				# 		otype_stack = []
-				# 	elsif in_table
-				# 		in_table = false
-				# 		buff << '</table>'
-				# 	elsif in_block
-				# 		buff << '</p>'
-				# 		in_block = false
-				# 	end
-				# else
-				# 	if !in_block
-				# 		in_block = true
-				# 		buff << "<p class='#{@vars['p.class']}'>"
-				# 	elsif in_block
-				# 		if line[-1] != '\\'
-				# 			buff << '<br />'
-				# 		end
-				# 	end
-				# 	buff << fmt_line(line)
-				# end
 			end
 
 			# @todo if not block_handler, need to find block handler
@@ -406,7 +363,7 @@ module TMD
 			end
 
 			if block_handler
-				block_handler.collect(line, buff, indent_char, indent) if line
+				block_handler.collect(line, buff, indents, indent) if line
 				block_handler.collect(nil, buff)
 			end
 

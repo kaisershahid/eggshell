@@ -27,7 +27,7 @@ module TMD::BlockHandler
 
 			def set_processor(proc)
 				@proc = proc
-				@proc.register_block(self, 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'pre', 'p', 'bq', 'div', 'raw', '#', '-', '/', '|')
+				@proc.register_block(self, 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'pre', 'p', 'bq', 'div', 'raw', '#', '-', '/', '|', '>')
 			end
 
 			def start(name, line, buffer, indents = '', indent_level = 0)
@@ -45,19 +45,28 @@ module TMD::BlockHandler
 
 				if name == '#' || name == '-'
 					@type = :list
-					@lines = [[name + line, indent_level]]
+					@lines = [[line, indent_level]]
 					return COLLECT
 				end
 
 				if name == 'table' || name == '/' || name == '|'
 					@type = :table
-					line = name + line if line != 'table'
-					@lines = [line]
+					@lines = []
+					@lines << line if line != 'table'
+					return COLLECT
+				end
+
+				if name == '>'
+					@type = :dt
+					@lines = [line[1..-1].split('::', 2)]
 					return COLLECT
 				end
 
 				# assume block text
 				@type = name
+				if line.index(name) == 0
+					line = line[name.length+1..-1].lstrip
+				end
 				@lines = [line]
 
 				return COLLECT
@@ -159,16 +168,48 @@ module TMD::BlockHandler
 						@proc.vars['table.style'] = ''
 						@proc.vars['table.attribs'] = ''
 					end
+				elsif @type == :dt
+					if line == '' || line[0] != '>'
+						ret = DONE
+						ret = RETRY if line[0] != '>'
+
+						buff << "<dl class='#{@proc.vars['dd.class']}'>"
+						@lines.each do |line|
+							key = line[0]
+							val = line[1]
+							buff << "<dt class='#{@proc.vars['dt.class']}'>#{key}</dt><dd class='#{@proc.vars['dd.class']}'>#{val}</dd>"
+						end
+						buff << "</dl>"
+					else
+						@lines << line[1..-1].split('::', 2)
+						ret = COLLECT
+					end
 				else
-					if line == ''
+					blank = false
+					if @type == 'pre'
+						$stderr.write "(#{indent_level}) #{indents}|#{line}\n"
+						if indent_level > 0
+							idx = indents.length / indent_level
+							line = indents[idx..-1] + line
+							$stderr.write " #{indent_level}) #{indents}|#{line}\n"
+						else
+							blank = line == ''
+						end
+					else
+						blank = line == ''
+					end
+
+					if blank
 						start_tag = ''
 						end_tag = ''
 						if @type != 'raw'
-							@type = 'blockquote' if !@type == 'bq'
+							@type = 'blockquote' if @type == 'bq'
 							# @todo get attributes from block param
 							start_tag = "<#{@type}>"
 							end_tag = "</#{@type}>"
-							buff << "#{start_tag}#{@lines.join('<br />')}#{end_tag}"
+							join = @type == 'pre' ? "\n" : '<br />'
+								
+							buff << "#{start_tag}#{@lines.join(join)}#{end_tag}"
 						else
 							# @todo insert newlines?
 							buff << @lines.join('')
@@ -176,6 +217,7 @@ module TMD::BlockHandler
 						@lines = []
 						ret = DONE
 					else
+						$stderr.write "#{@type}: #{indents} #{indent_level} #{line}\n"
 						@lines << line
 						ret = COLLECT
 					end
