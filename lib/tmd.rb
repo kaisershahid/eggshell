@@ -211,6 +211,7 @@ module TMD
 				if line.length < oline.length
 					line_end = oline[line.length..-1]
 				end
+
 				# if line end in \, buffer and continue to next line;
 				# join buffered line once \ no longer at end
 				if line[-1] == '\\'
@@ -224,9 +225,9 @@ module TMD
 						end
 
 						if ext_line
-							ext_line += line
+							ext_line += indents + line
 						else
-							ext_line = line
+							ext_line = indents + line
 						end
 						next
 					else
