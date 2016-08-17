@@ -132,7 +132,7 @@ module TMD::BlockHandler
 						cols = nil
 						@lines.each do |line|
 							cols = []
-							if line[0] == '/'
+							if line[0] == '/' && buff.length == 1
 								cols = line[1..line.length].split('|')
 								buff << '<thead><tr>'
 								cols.each do |col|
@@ -140,6 +140,14 @@ module TMD::BlockHandler
 								end
 								buff << '</tr></thead>'
 								buff << '<tbody>'
+							elsif line[0] == '/'
+								# implies footer
+								cols = line[1..line.length].split('|')
+								buff << '<tfoot><tr>'
+								cols.each do |col|
+									buff << "\t#{@proc.fmt_cell(col, true)}"
+								end
+								buff << '</tr></tfoot>'
 							elsif line[0] == '|' || line[0..1] == '|>'
 								idx = 1
 								sep = '|'
