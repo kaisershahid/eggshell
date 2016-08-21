@@ -53,11 +53,13 @@ module TMD::MacroHandler
 
 			def set_processor(tmd)
 				@proc = tmd
-				@proc.register_macro(self, 'capture', 'var', 'include', 'parse_test')
+				@proc.register_macro(self, '!', 'capture', 'var', 'include', 'parse_test')
 			end
 
 			def process(buffer, macname, args, lines, depth)
-				if macname == 'capture'
+				if macname == '!'
+					
+				elsif macname == 'capture'
 					# @todo check args for fragment to parse
 					return if !lines
 					@proc.vars[args[0][1]] = @proc.process(lines, depth)
@@ -92,24 +94,30 @@ module TMD::MacroHandler
 				# @todo check all include paths?
 				paths.each do |inc|
 					inc = @proc.expand_expr(inc.strip)
+					checks = []
 					if inc[0] != '/'
-						if @proc.vars[:include_paths].length > 0
-							inc = "#{@proc.vars[:include_paths][0]}/#{inc}"
+						@proc.vars[:include_paths].each do |root|
+							checks << "#{root}/#{inc}"
 						end
 						# @todo if :include_root, expand path and check that it's under the root, otherwise, sandbox
 					else
 						# sandboxed root include
 						if @proc.vars[:include_root]
-							inc = "#{@proc.vars[:include_root]}#{inc}"
+							checks << "#{@proc.vars[:include_root]}#{inc}"
+						else
+							checks << inc
 						end
 					end
 
-					if File.exists?(inc)
-						lines = IO.readlines(inc)
-						buff << @proc.process(lines, depth + 1)
-						@proc._debug("include: #{inc}")
-					else
-						@proc._warn("include: not found: #{inc}")
+					checks.each do |inc|
+						if File.exists?(inc)
+							lines = IO.readlines(inc)
+							buff << @proc.process(lines, depth + 1)
+							@proc._debug("include: 200 #{inc}")
+							break
+						else
+							@proc._warn("include: 404 #{inc}")
+						end
 					end
 				end
 			end
