@@ -1,3 +1,4 @@
+module TMD; end
 # Parses and evaluates statements (expressions).
 #
 # pre.
@@ -38,18 +39,75 @@ class TMD::ExpressionEvaluator
 		'||' => 44
 	}.freeze
 
+	class ExprArray < Array
+		attr_accessor :dynamic
+		attr_reader :dyn_keys
+
+		# Adds a term to the array. If it's a dynamic statement, its position is
+		# marked and this array is marked as dynamic for evaluation later.
+		def <<(term)
+			@dyn_keys = [] if !@dyn_keys
+
+			# cascade dynamic status
+			if term.is_a?(ExprArray) || term.is_a?(ExprHash)
+				if term.dynamic
+					@dynamic = true
+					@dyn_keys << self.length
+				end					
+			elsif term.is_a?(Array)
+				if term[0] == :op
+					
+				end
+				term, dyn = TMD::ExpressionEvaluator::struct_compact(term)
+				if dyn
+					@dynamic = true
+					@dyn_keys << self.length
+				end
+			end
+
+			self.push(term)
+		end
+	end
+
+	class ExprHash < Hash
+		attr_accessor :dynamic
+		attr_reader :dyn_keys
+
+		def add_term(key, term)
+			@dyn_keys = [] if !@dyn_keys
+
+			if term.is_a?(ExprArray) || term.is_a?(ExprHash)
+				if term.dynamic
+					@dynamic = true
+					@dyn_keys << key
+				end					
+			elsif term.is_a?(Array)
+				term, dyn = TMD::ExpressionEvaluator::struct_compact(term)
+				if dyn
+					@dynamic = true
+					@dyn_keys << key
+				end
+			end
+
+			self[key] = term
+		end
+	end
+
 	# Normalizes a term.
 	# @param Object term If `String`, attempts to infer type (either `Fixnum`, `Float`, or `[:var, varname]`)
 	# @param Boolean preserve_str If true and input is string but not number, return string literal.
 	def self.term_val(term, preserve_str = false)
 		if term.is_a?(String)
-			if term.match(/^\d+$/)
+			if preserve_str
+				return term
+			elsif term.match(/^\d+$/)
 				return term.to_i
 			elsif term.match(/^\d*\.\d+$/)
 				return term.to_f
-			elsif preserve_str
-				return term
+			elsif term == 'null' || term == 'nil'
+				return nil
 			end
+
 			return [:var, term]
 		end
 		return term
@@ -70,7 +128,6 @@ class TMD::ExpressionEvaluator
 	# @param Array frag Operator fragment.
 	# @param Array stack Fragment stack.
 	def self.op_precedence(tok, frag, stack)
-		_trace "... OP_PRECEDENCE pre: #{frag.inspect}", LOG_OP
 		topfrag = frag
 		lptr = nil
 		# retrieve the right-most operand
@@ -79,23 +136,17 @@ class TMD::ExpressionEvaluator
 			frag = frag[3]
 		end
 		lptr = topfrag if !lptr
-		_trace ">>> lptr = #{lptr.inspect}, frag = #{frag.inspect}", LOG_OP
 
 		if frag[0] == :op
 			p1 = OP_PRECEDENCE[tok]
 			p0 = OP_PRECEDENCE[frag[1]]
-			_trace "??? check OP_PRECEDENCE (#{tok} #{p1}, #{frag[1]} #{p0}", LOG_OP
 			if p1 > p0
-				_trace "^^^ bump up #{tok}", LOG_OP
 				frag[3] = [:op, tok, frag[3], nil]
 			else
-				_trace "___ no bump #{tok} (lptr = #{lptr.inspect}", LOG_OP
 				lptr[3] = [:op, tok, [:op, frag[1], frag[2], frag[3]], nil]
 			end
 			stack << topfrag
-			_trace "... new frag: #{frag.inspect} || #{stack.inspect}", LOG_OP
 		else
-			_trace "<<< frag op.2b: stack = #{stack.inspect}", LOG_OP
 			stack << [:op, tok, frag, nil]
 		end
 	end
@@ -139,7 +190,6 @@ class TMD::ExpressionEvaluator
 			tok = toks[i]
 			i += 1
 			next if tok == ''
-			#puts ">>>>>>> (#{d})#{state[d]}, #{tok}|#{i}"
 
 			# assumes term has been initialized through open quote
 			# @todo any other contexts that \ is useful?
@@ -155,9 +205,10 @@ class TMD::ExpressionEvaluator
 					state.pop
 					d -= 1
 					if state[d] != :map
-						ptr << [:str, term]
+						ptr << term
 						term = nil
 					end
+					last_state = :quote
 				end
 			elsif (tok == "'" || tok == '"') && last_state != :term
 				state << :quote
@@ -177,14 +228,14 @@ class TMD::ExpressionEvaluator
 				end
 				state << :map
 				d += 1
-				map = {}
+				map = ExprHash.new
 				stack << map
 				ptr = map
 			elsif tok == '['
 				if last_state != :term
 					state << :arr
 					d += 1
-					arr = []
+					arr = ExprArray.new
 					stack << arr
 					ptr = arr
 				else
@@ -197,11 +248,13 @@ class TMD::ExpressionEvaluator
 					map_key = term
 					term = nil
 				end
+				last_state = :map_key
 			elsif state[d] == :map && tok == '}'
 				# @todo validate & convert term?
-				ptr[term_val(map_key, true)] = term
+				ptr.add_term(map_key, term_val(term, last_state == :quote))
+				map_key = nil
 				term = nil
-				# @todo put this as [:map, map]?
+
 				state.pop
 				d -= 1
 				map = stack.pop
@@ -211,10 +264,11 @@ class TMD::ExpressionEvaluator
 				term += ']'
 			elsif state[d] == :arr && tok == ']'
 				if term
-					ptr << term_val(term)
+					term = term_val(term, last_state == :quote)
+					ptr << term
 					term = nil
 				end
-				# @todo put this as [:arr, arr]?
+
 				last_state = state.pop
 				d -= 1
 				arr = stack.pop
@@ -225,41 +279,32 @@ class TMD::ExpressionEvaluator
 					term = arr
 				end
 			elsif tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
-				#_trace "** op: #{tok} -> #{term} (d=#{d})", LOG_OP
-				#_trace "\t..ptr = #{ptr.inspect} (stack.length = #{stack.length})", LOG_OP
 				state << :op
 				d += 1
 				if term
 					if ptr.length == 0
 						ptr << [:op, tok, term_val(term), nil]
 						term = nil
-						_trace "frag op.0: #{ptr[-1].inspect}", LOG_OP
 					else
 						# @TODO this doesn't make sense. if there's a dangling term then there's a syntax error
 						# ... x + y z - a ==> 'z' would be the term before '-' for something like this to happen
 						last = ptr.pop
-						ptr << [:op, tok, last, term]
-						#_trace "frag op.1: #{ptr[-1].inspect}", LOG_OP
+						ptr << [:op, tok, last, term_val(term)]
 					end
 				else
 					if ptr.length > 0
-						#_trace "frag op.2 (d=#{d})...", LOG_OP
 						frag = ptr.pop
 						# when you have x + y / ..., make it x + (y / ...)
-						#_trace "frag op.2: #{tok} -- #{frag.inspect}", LOG_OP
-						op_precedence(tok, frag, ptr)
+						op_precedence(tok, term_val(frag), ptr)
 					end
 				end
-				_trace' ** OP DONE **', LOG_OP
 			elsif tok == '('
 				if term
-					#_trace'push fn ('
-					#ptr << [:fn, term, []]
 					term = [:fn, term, []]
 					if state[d] != :map
 						ptr << term
 					else
-						ptr[map_key] = term
+						ptr.add_term(map_key, term)
 						last_key << map_key
 						map_key = nil
 					end
@@ -271,22 +316,17 @@ class TMD::ExpressionEvaluator
 					stack << arr
 					ptr = arr
 				else
-					#_trace'push nest ('
 					state << :nest
 					d += 1
 					arr = []
 					stack << arr
 					ptr = arr
 				end
-				_trace "...... #{stack.inspect}"
 			elsif tok == ')'
 				lstate = last_state = state.pop
 				lstack = stack.pop
 				ptr = stack[-1]
 				d = state.length - 1
-				# _trace "/#{lstate} ) (d=#{d}, lstack=#{lstack.inspect}"
-				# _trace "\tstate = #{state.inspect}"
-				# _trace "\tstack = #{stack.inspect} ===> ptr=#{ptr.inspect}"
 
 				if lstate == :nest
 					if state[d] == :fnop
@@ -301,14 +341,12 @@ class TMD::ExpressionEvaluator
 							op_insert(frag, lstack)
 						else
 							lstack.each do |item|
-								_trace "#{d}: reinserting #{item.inspect}"
 								ptr << item
 							end
 						end
 					end
 				elsif lstate == :fnop
 					if term
-						puts "fnop: #{term}"
 						lstack << term_val(term)
 						term = nil
 					end
@@ -322,28 +360,22 @@ class TMD::ExpressionEvaluator
 					end
 				end
 			elsif tok == ','
-				#_trace ",, (state = #{state.inspect}"
 				# @todo if term is nil and ptr.length == 0, assume an error
 				if term
 					if state[d] == :map
-						# @todo map validation & convert term?
-						puts "map entry: #{map_key}: #{term}"
-						ptr[term_val(map_key, true)] = term
+						# @todo map validation
+						ptr.add_term(term_val(map_key, true), term_val(term, last_state == :quote))
 						map_key = nil
 						term = nil
 					else
-						puts "???? #{term}"
-						ptr << term_val(term)
+						term = term_val(term, last_state == :quote)
+						ptr << term
 						term = nil
 					end
 					last_state = :comma
 				end
 			#elsif tok == '#'
 			elsif tok.strip != ''
-				# _trace "tok: #{tok} (d=#{d}) ==> ptr=#{ptr.inspect}"
-				# _trace "\tstate=#{state.inspect}"
-				# _trace "\tstack=#{stack.inspect}"
-				#_trace "\tstate = #{state.inspect}"
 				term = term ? term + tok : tok
 
 				if state[d] == :op
@@ -351,7 +383,7 @@ class TMD::ExpressionEvaluator
 						# @throw exception
 					elsif ptr[-1][0] == :op
 						frag = ptr[-1]
-						op_insert(frag, term)
+						op_insert(frag, term_val(term, last_state == :quote))
 						term = nil
 					else
 						# ???
@@ -359,11 +391,10 @@ class TMD::ExpressionEvaluator
 					last_state = state.pop
 					d -= 1
 				elsif state[d] == :map
+					# ?
 				elsif state[d-1] == :fnop
-					#_trace "**** fnop arg: #{term} (#{state[d]}"
-					ptr << term
+					ptr << term_val(term, last_state == :quote)
 					term = nil
-					next
 				else
 					last_state = :term
 				end
@@ -387,13 +418,78 @@ class TMD::ExpressionEvaluator
 		return stack[0]
 	end
 
+	# Takes the output of {@see struct} and evaluates static expressions to speed up
+	# {@see expr_eval}.
+	# @param Object struct The structure to compact.
+	# @return Array `[struct, dynamic]`
+	def self.struct_compact(struct)
+		dyn = false
+
+		if struct.is_a?(ExprArray) || struct.is_a?(ExprHash)
+			# don't need to do anything -- add_term already compacts terms
+			dyn = struct.dynamic
+		elsif struct.is_a?(Array)
+			# the only term that potentially is static is a logical or mathematical operation.
+			# the operation will compact if all terms are static (e.g. can be evaluated now)
+			if struct[0].is_a?(Symbol)
+				if struct[0] == :op
+					lterm = struct[2]
+					if lterm.is_a?(Array)
+						lstruct, ldyn = struct_compact(lterm)
+						if !ldyn
+							lterm = lstruct
+						else
+							lterm = nil
+						end
+					end
+
+					rterm = struct[3]
+					if rterm.is_a?(Array)
+						rstruct, rdyn = struct_compact(rterm)
+						if !rdyn
+							rterm = rstruct
+						else
+							rterm = nil
+						end
+					end
+
+					if lterm != nil && rterm != nil
+						return [expr_eval_op(struct[1], lterm, rterm), false]
+					else
+						dyn = true
+					end
+				elsif struct[0] == :fn
+					dyn = true
+					struct[2] = struct_compact(struct[2])[0]
+				else
+					dyn = true
+				end
+			else
+				i = 0
+				while i < struct.length
+					substruct = struct[i]
+					substruct, sdyn = struct_compact(substruct)
+					dyn = true if sdyn
+					struct[i] = substruct
+					i += 1
+				end
+			end
+		end
+
+		return [struct, dyn]
+	end
+
 	# @param Array expr An expression structure from @{see struct()}
 	# @param Map vtable Map for variable references.
 	# @param Map ftable Map for function calls.
 	def self.expr_eval(expr, vtable, ftable)
 		ret = nil
-		# @todo handle data arr/map
-		if expr.is_a?(Array) && expr[0]
+		if expr.is_a?(ExprArray) || expr.is_a?(ExprHash)
+			ret = expr.clone
+			(expr.dyn_keys || []).each do |key|
+				ret[key] = expr_eval(expr[key], vtable, ftable)
+			end
+		elsif expr.is_a?(Array)
 			if expr[0] && !expr[0].is_a?(Symbol)
 				ret = []
 				i = 0
@@ -401,49 +497,23 @@ class TMD::ExpressionEvaluator
 					ret[i] = expr_eval(subexpr, vtable, ftable)
 					i += 1
 				end
-			else
+			elsif expr[0]
 				frag = expr
 				if frag[0] == :op
 					op = frag[1]
 					lterm = frag[2]
+					rterm = frag[3]
+
 					if lterm.is_a?(Array)
 						lterm = expr_eval(lterm, vtable, ftable)
 					end
 					if rterm.is_a?(Array)
 						rterm = expr_eval(rterm, vtable, ftable)
 					end
-					case op
-					when '=='
-						ret = lterm == rterm
-					when '<'
-						ret = lterm < rterm
-					when '>'
-						ret = lterm > rterm
-					when '<='
-						ret = lterm <= rterm
-					when '>='
-						ret = lterm >= rterm
-					when '+'
-						ret = lterm + rterm
-					when '-'
-						ret = lterm - rterm
-					when '*'
-						ret = lterm * rterm
-					when '/'
-						ret = lterm / rterm
-					when '%'
-						ret = lterm % rterm
-					when '&'
-						ret = lterm & rterm
-					when '|'
-						ret = lterm | rterm
-					when '&&'
-						ret = lterm && rterm
-					when '||'
-						ret = lterm || rterm
-					end
-					# @todo support other bitwise
+
+					ret = expr_eval_op(op, lterm, rterm)
 				elsif frag[0] == :fn
+					# @todo see if fname itself has an entry, and call if it has method `func_call` (?)
 					fname = frag[1]
 					args = frag[2]
 					ns, fname = fname.split(':')
@@ -454,7 +524,13 @@ class TMD::ExpressionEvaluator
 					fname = fname.to_sym
 
 					if ftable[ns] && ftable[ns].respond_to?(fname)
-						ret = ftable[ns].send(fname, args)
+						cp = []
+						args.each do |arg|
+							el = expr_eval(arg, vtable, ftable)
+							cp << el
+						end
+
+						ret = ftable[ns].send(fname, *cp)
 					else
 						ret = nil
 						# @todo log error or throw exception? maybe this should be a param option
@@ -464,6 +540,43 @@ class TMD::ExpressionEvaluator
 				end
 			end
 		end
+		return ret
+	end
+
+	def self.expr_eval_op(op, lterm, rterm)
+		ret = nil
+		case op
+		when '=='
+			ret = lterm == rterm
+		when '<'
+			ret = lterm < rterm
+		when '>'
+			ret = lterm > rterm
+		when '<='
+			ret = lterm <= rterm
+		when '>='
+			ret = lterm >= rterm
+		when '+'
+			ret = lterm + rterm
+		when '-'
+			ret = lterm - rterm
+		when '*'
+			ret = lterm * rterm
+		when '/'
+			ret = lterm / rterm
+		when '%'
+			ret = lterm % rterm
+		when '&'
+			ret = lterm & rterm
+		when '|'
+			ret = lterm | rterm
+		when '&&'
+			ret = lterm && rterm
+		when '||'
+			ret = lterm || rterm
+		end
+		# @todo support other bitwise
+		return ret
 	end
 
 	# Attempts to a resolve a variable in the form `a.b.c.d` from an initial 
@@ -546,6 +659,10 @@ class TMD::ExpressionEvaluator
 		end
 	end
 
+	def self.fn(arg1, arg2, arg3 = nil)
+		puts "fn: 1:#{arg1}, \n\t2:#{arg2}\n\t3:#{arg3}"
+	end
+
 	def self.test_retrieve_var
 		vtable = {}
 		ftable = {}
@@ -560,10 +677,31 @@ class TMD::ExpressionEvaluator
 	end
 
 	def self.test_struct
+		vtable = {'val' => 'VALUE'}
+		ftable = {'' => TMD::ExpressionEvaluator}
+
 		expr1 = "x.y[0]['1']"
 		expr2 = "fn(#{expr1}, a[1])"
-		puts "#{expr1} => #{struct(expr1)}"
-		puts "#{expr2} => #{struct(expr2)}"
+		expr3 = "5 + 8 / 4 + 6"
+		expr4 = "{key : 'val', val: 55.0, another: val}"
+		expr5 = "{key : val, val: 55.0}"
+		expr6 = "fn(#{expr4}, [1 < 5, 0, 1], {'k': val})"
+
+		#puts "#{expr1} => #{struct(expr1)}"
+		#puts "#{expr2} => #{struct(expr2)}"
+
+		s3 = struct(expr3)
+		s3c = struct_compact(s3)
+		#puts "3. #{expr3} => #{s3}"
+		#puts "3. #{expr3} => #{s3c}"
+		#puts "4. #{expr4} => #{struct_compact(struct(expr4))}"
+		#puts "5. #{expr5} => #{struct_compact(struct(expr5))}"
+
+		s6 = struct(expr6)
+		s6c = struct_compact(s6)
+		puts "6. #{expr6} => #{s6}"
+		puts "		#{s6c}"
+		puts "		#{expr_eval(s6c, vtable, ftable)}"
 	end
 end
 
