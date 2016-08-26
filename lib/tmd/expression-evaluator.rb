@@ -21,7 +21,7 @@ module TMD; end
 # /pre
 class TMD::ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
-	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:)/
+	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
 
 	LOG_OP = 2
 	LOG_LEVEL = 0
@@ -151,6 +151,26 @@ class TMD::ExpressionEvaluator
 		end
 	end
 
+	# When terminating ternary operation, take the two fragments from deepest stack
+	# and place them as the ternary values. The ternary fragment is assumed to be
+	# the last element on the n-1 stack. Example:
+	#
+	# pre.
+	# 	[
+	# 		[ [:op_tern, [:op, '==', 1, 2], nil, nil] ],
+	# 		[ [true, false] ]
+	# 	]
+	# 	becomes ...
+	# 	[
+	# 		[ [:op_tern, [:op, '==', 1, 2], true, false] ]
+	# 	]
+	def self.op_tern_push(stack)
+		ops = stack.pop
+		ptr = stack[-1]
+		ptr[-1][2] = ops[0]
+		ptr[-1][3] = ops[1]
+	end
+
 	def self._trace(msg, lvl = 0)
 	end
 
@@ -191,6 +211,7 @@ class TMD::ExpressionEvaluator
 			i += 1
 			next if tok == ''
 
+			puts "#{state[d]}: #{tok} / #{last_state}"
 			# assumes term has been initialized through open quote
 			# @todo any other contexts that \ is useful?
 			if tok == '\\'
@@ -241,6 +262,8 @@ class TMD::ExpressionEvaluator
 				else
 					term += '['
 				end
+			elsif state[d] == :tern && tok == ':'
+				last_state = :colon
 			elsif state[d] == :map && tok == ':'
 				if map_key # preserve function
 					term += ':'
@@ -323,6 +346,11 @@ class TMD::ExpressionEvaluator
 					ptr = arr
 				end
 			elsif tok == ')'
+				if state[d] == :tern
+					op_tern_push(stack)
+					state.pop
+					d -= 1
+				end
 				lstate = last_state = state.pop
 				lstack = stack.pop
 				ptr = stack[-1]
@@ -372,12 +400,25 @@ class TMD::ExpressionEvaluator
 						ptr << term
 						term = nil
 					end
+					if state[d] == :tern
+						op_tern_push(stack)
+						state.pop
+						d -= 1
+					end
 					last_state = :comma
 				end
-			#elsif tok == '#'
+			elsif tok == '?'
+				last_op = ptr.pop
+				ptr << [:op_tern, last_op, nil, nil]
+				arr = []
+				stack << arr
+				state << :tern
+				d += 1
+				ptr = arr
+				last_state = nil
 			elsif tok.strip != ''
 				term = term ? term + tok : tok
-
+			elsif tok != '' && term
 				if state[d] == :op
 					if ptr[-1] == nil
 						# @throw exception
@@ -395,14 +436,16 @@ class TMD::ExpressionEvaluator
 				elsif state[d-1] == :fnop
 					ptr << term_val(term, last_state == :quote)
 					term = nil
-				else
-					last_state = :term
 				end
+
+				last_state = :term
 			end
 		end
 
 		# @todo cleanup
-		if state[d] == :op && term
+		if state[d] == :tern
+			op_tern_push(stack)
+		elsif state[d] == :op && term
 			frag = ptr[-1]
 			if frag[0] == :op
 				op_insert(frag, term)
@@ -499,7 +542,14 @@ class TMD::ExpressionEvaluator
 				end
 			elsif expr[0]
 				frag = expr
-				if frag[0] == :op
+				if frag[0] == :op_tern
+					cond = expr_eval(frag[1], vtable, ftable)
+					if cond
+						ret = expr_eval(frag[2], vtable, ftable)
+					else
+						ret = expr_eval(frag[3], vtable, ftable)
+					end
+				elsif frag[0] == :op
 					op = frag[1]
 					lterm = frag[2]
 					rterm = frag[3]
@@ -659,7 +709,10 @@ class TMD::ExpressionEvaluator
 		end
 	end
 
-	def self.fn(arg1, arg2, arg3 = nil)
+	def self.print_struct(struct, indent = '')
+	end
+
+	def self.fn(arg1, arg2, *arg3)
 		puts "fn: 1:#{arg1}, \n\t2:#{arg2}\n\t3:#{arg3}"
 	end
 
@@ -690,20 +743,24 @@ class TMD::ExpressionEvaluator
 		#puts "#{expr1} => #{struct(expr1)}"
 		#puts "#{expr2} => #{struct(expr2)}"
 
-		s3 = struct(expr3)
-		s3c = struct_compact(s3)
+		#s3 = struct(expr3)
+		#s3c = struct_compact(s3)
 		#puts "3. #{expr3} => #{s3}"
 		#puts "3. #{expr3} => #{s3c}"
 		#puts "4. #{expr4} => #{struct_compact(struct(expr4))}"
 		#puts "5. #{expr5} => #{struct_compact(struct(expr5))}"
 
-		s6 = struct(expr6)
-		s6c = struct_compact(s6)
-		puts "6. #{expr6} => #{s6}"
-		puts "		#{s6c}"
-		puts "		#{expr_eval(s6c, vtable, ftable)}"
+		#s6 = struct(expr6)
+		#s6c = struct_compact(s6)
+		# puts "		#{s6c}"
+		# puts "		#{expr_eval(s6c, vtable, ftable)}"
+
+		expr7 = "fn(1 < 5 ? '1 smaller' : '5 smaller', 5 > 1, '5 bigger', '1 bigger', 1)"
+		s7 = struct(expr7)
+		puts "7. #{expr7} => #{s7.inspect}"
+		expr_eval(s7, vtable, ftable)
 	end
 end
 
 #TMD::ExpressionEvaluator.test_retrieve_var
-#TMD::ExpressionEvaluator.test_struct
+TMD::ExpressionEvaluator.test_struct
