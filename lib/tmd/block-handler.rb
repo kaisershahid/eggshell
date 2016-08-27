@@ -22,6 +22,9 @@ module TMD::BlockHandler
 		class NoOpHandler
 			include TMD::BlockHandler
 		end
+
+		# `table` block parameters:
+		# - `row.classes`: defaults to `['odd', 'even']`. The number of elements represents the number of cycles.
 		class BasicHtml
 			include TMD::BlockHandler
 
@@ -31,14 +34,13 @@ module TMD::BlockHandler
 			end
 
 			def start(name, line, buffer, indents = '', indent_level = 0)
-
 				# @todo read block_param arguments
 				if name[0] == 'h'
 					if name == 'hr'
 						buff << "<hr />"
 					else
 						id = line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
-						buff << "<#{name} id='#{id}'>#{line}</#{name}>"
+						buffer << "<#{name} id='#{id}'>#{line}</#{name}>"
 					end
 					return DONE
 				end
@@ -76,7 +78,7 @@ module TMD::BlockHandler
 				line = '' if !line
 				ret = COLLECT
 				if @type == :list
-					if line && (line[0] == '#' || line[0] = '-')
+					if line && (line[0] == '#' || line[0] == '-')
 						@lines << [line, indent_level]
 					else
 						# if non-empty line, reprocess this line but process buffer
@@ -126,26 +128,45 @@ module TMD::BlockHandler
 						@lines << line
 					else
 						ret = (line[0] != '\\' && line != '') ? RETRY : DONE
+						params = @proc.vars[:block_params]
+						map = params.is_a?(Array) ? (params[0] || {}) : {}
+						tbl_class = map['class'] || ''
+						tbl_style = map['style'] || ''
+						tbl_attrib = ''
+						if map['attribs'].is_a?(String)
+							tbl_attrib = map['attribs']
+						elsif map['attribs'].is_a?(Hash)
+							map['attribs'].each do |key,val|
+								tbl_attrib = "#{tbl_attrib} #{key}='#{val}'"
+							end
+						end
+						row_classes = map['row.classes']
+						row_classes = ['odd', 'even'] if !row_classes.is_a?(Array)
 
 						@proc.vars['t.row'] = 0
-						buff << "<table class='#{@proc.vars['table.class']}' style='#{@proc.vars['table.style']}' #{@proc.vars['table.attribs']}>"
+						buff << "<table class='#{tbl_class}' style='#{tbl_style}'#{tbl_attrib}>"
 						cols = nil
+						rows = 0
+						rc = 0
 						@lines.each do |line|
 							cols = []
-							if line[0] == '/' && buff.length == 1
+							ccount = 0
+							if line[0] == '/' && rows == 0
 								cols = line[1..line.length].split('|')
-								buff << '<thead><tr>'
+								buff << "<thead><tr class='#{map['head.class']}'>"
 								cols.each do |col|
-									buff << "\t#{@proc.fmt_cell(col, true)}"
+									buff << "\t#{@proc.fmt_cell(col, true, ccount)}"
+									ccount += 1
 								end
 								buff << '</tr></thead>'
 								buff << '<tbody>'
 							elsif line[0] == '/'
 								# implies footer
 								cols = line[1..line.length].split('|')
-								buff << '<tfoot><tr>'
+								buff << "<tfoot><tr class='#{map['foot.class']}'>"
 								cols.each do |col|
-									buff << "\t#{@proc.fmt_cell(col, true)}"
+									buff << "\t#{@proc.fmt_cell(col, true, ccount)}"
+									ccount += 1
 								end
 								buff << '</tr></tfoot>'
 							elsif line[0] == '|' || line[0..1] == '|>'
@@ -156,15 +177,19 @@ module TMD::BlockHandler
 									sep = '|>'
 								end
 								cols = line[idx..line.length].split(sep)
-								@proc.vars['t.row'] += 1
-								buff << '<tr>'
+								@proc.vars['t.row'] = rc
+								rclass = row_classes[rc % row_classes.length]
+								buff << "<tr class='#{rc} #{rclass}'>"
 								cols.each do |col|
-									buff << "\t#{@proc.fmt_cell(col)}"
+									buff << "\t#{@proc.fmt_cell(col, false, ccount)}"
+									ccount += 1
 								end
 								buff << '</tr>'
+								rc += 1
 							else
 								cols = line[1..line.length].split('|') if line[0] == '\\'
 							end
+							rows += 1
 						end
 
 						buff << '</tbody>'
@@ -195,11 +220,11 @@ module TMD::BlockHandler
 				else
 					blank = false
 					if @type == 'pre'
-						$stderr.write "(#{indent_level}) #{indents}|#{line}\n"
+						#$stderr.write "(#{indent_level}) #{indents}|#{line}\n"
 						if indent_level > 0
 							idx = indents.length / indent_level
 							line = indents[idx..-1] + line
-							$stderr.write " #{indent_level}) #{indents}|#{line}\n"
+							#$stderr.write " #{indent_level}) #{indents}|#{line}\n"
 						else
 							blank = line == ''
 						end
@@ -225,7 +250,7 @@ module TMD::BlockHandler
 						@lines = []
 						ret = DONE
 					else
-						$stderr.write "#{@type}: #{indents} #{indent_level} #{line}\n"
+						#$stderr.write "#{@type}: #{indents} #{indent_level} #{line}\n"
 						@lines << line
 						ret = COLLECT
 					end

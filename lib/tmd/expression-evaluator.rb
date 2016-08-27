@@ -211,7 +211,7 @@ class TMD::ExpressionEvaluator
 			i += 1
 			next if tok == ''
 
-			puts "#{state[d]}: #{tok} / #{last_state}"
+			#puts "#{state[d]}: #{tok} / #{last_state}"
 			# assumes term has been initialized through open quote
 			# @todo any other contexts that \ is useful?
 			if tok == '\\'
@@ -247,6 +247,12 @@ class TMD::ExpressionEvaluator
 					ptr << [:brace_op, delim]
 					break
 				end
+
+				if map_key
+					last_key << map_key
+					map_key = nil
+				end
+
 				state << :map
 				d += 1
 				map = ExprHash.new
@@ -282,13 +288,18 @@ class TMD::ExpressionEvaluator
 				d -= 1
 				map = stack.pop
 				ptr = stack[-1]
-				ptr << map
+
+				if state[d] == :map
+					ptr.add_term(last_key.pop, map)
+				else
+					ptr.is_a?(ExprArray) ? ptr.add_term(map) : ptr.push(map)
+				end
 			elsif last_state == :term && tok == ']'
 				term += ']'
 			elsif state[d] == :arr && tok == ']'
 				if term
 					term = term_val(term, last_state == :quote)
-					ptr << term
+					ptr.add_term(term)
 					term = nil
 				end
 
@@ -763,4 +774,4 @@ class TMD::ExpressionEvaluator
 end
 
 #TMD::ExpressionEvaluator.test_retrieve_var
-TMD::ExpressionEvaluator.test_struct
+#TMD::ExpressionEvaluator.test_struct

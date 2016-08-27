@@ -58,6 +58,7 @@ module TMD
 
 		def initialize
 			@vars = {:references => {}, :toc => [], :include_paths => [], 'log.level' => '1'}
+			@funcs = {}
 			@macros = {}
 			@blocks = {}
 
@@ -112,6 +113,10 @@ module TMD
 		end
 
 		attr_reader :vars
+
+		def expr_eval(struct)
+			return TMD::ExpressionEvaluator.expr_eval(struct, @vars, @funcs)
+		end
 
 		# Expands expressions within `\${}`. Currently only inserts variables by key.
 		def expand_expr(expr)
@@ -196,10 +201,10 @@ module TMD
 					tab = line[0] == TAB ? TAB : TAB_SPACE
 					indent_level += 1
 					offset = tab.length
-					$stderr.write "\t[#{offset}, #{offset+tab.length}]\n"
+					#$stderr.write "\t[#{offset}, #{offset+tab.length}]\n"
 					while line[offset...offset+tab.length] == tab
 						indent_level += 1
-						puts "\t>#{indent_level}"
+						#$stderr.write "\t>#{indent_level}\n"
 						offset += tab.length
 					end
 					indents = line[0...offset]
@@ -265,7 +270,7 @@ module TMD
 
 					macro_handler = @macros[macro]
 					if macro_handler
-						macro_depth = call_depth + indent
+						macro_depth = call_depth + 1
 						if delim
 							if block
 								nblock = Block.new(macro, macro_handler, args, block.cur.depth + 1, delim)
@@ -332,6 +337,9 @@ module TMD
 					next
 				end
 
+				# @todo try to map indent to a block handler
+				next if line == ''
+
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
 				block_type = line.match(BLOCK_MATCH)
 				if block_type && block_type[0].strip != ''
@@ -364,6 +372,7 @@ module TMD
 			end
 
 			if block_handler
+				$stderr.write("ENDING BLOCK: #{line}\n")
 				block_handler.collect(line, buff, indents, indent) if line
 				block_handler.collect(nil, buff)
 			end
@@ -529,17 +538,25 @@ module TMD
 			return expand_expr(buff.join(''))
 		end
 
-		def fmt_cell(val, header = false)
+		def fmt_cell(val, header = false, colnum = 0)
 			tag = header ? 'th' : 'td'
 			buff = []
 			attribs = ''
+			# @todo unescape \
 			if val[0] == '!'
 				rt = val.index('!', 1)
 				attribs = val[1...rt]
 				val = val[rt+1..val.length]
 			end
 
+			if attribs.match(/class=/)
+				attribs = attribs.gsub(/class=(['"])/, 'class=$1' + "td-col-#{colnum}")
+			else
+				attribs += " class='td-col-#{colnum}'"
+			end
+
 			buff << "<#{tag} #{attribs}>"
+			cclass = 
 			if val[0] == '\\'
 				val = val[1..val.length]
 			end

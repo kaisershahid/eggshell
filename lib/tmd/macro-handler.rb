@@ -58,7 +58,8 @@ module TMD::MacroHandler
 
 			def process(buffer, macname, args, lines, depth)
 				if macname == '!'
-					
+					@proc.vars[:block_params] = @proc.expr_eval(args)
+					$stderr.write ">>block: #{@proc.vars[:block_params].inspect}\n"
 				elsif macname == 'capture'
 					# @todo check args for fragment to parse
 					return if !lines
