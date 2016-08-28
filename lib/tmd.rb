@@ -24,12 +24,12 @@ module TMD
 		attr_reader :depth, :lines, :delim
 
 		def cur
-			@stack[@stack.length-1]
+			@stack[-1]
 		end
 
 		def push(block)
+			@stack[-1].lines << block
 			@stack << block
-			@lines << block
 		end
 
 		def pop()
@@ -37,15 +37,16 @@ module TMD
 		end
 
 		def collect(entry)
-			@stack[@stack.length-1].lines << entry
+			@stack[-1].lines << entry
 		end
 
-		def process(buffer)
-			@handler.process(buffer, @macro, @args, @lines, @depth)
+		def process(buffer, depth = nil)
+			#puts ">>block.process: #{@macro} => #{@lines.inspect}"
+			@handler.process(buffer, @macro, @args, @lines, depth == nil ? @depth : depth)
 		end
 
 		def inspect
-			"<BLOCK #{@macro} (#{@depth}) #{@handler} >"
+			"<BLOCK #{@macro} (#{@depth}) #{@handler.class} | #{@lines.inspect} >"
 		end
 	end
 
@@ -61,15 +62,6 @@ module TMD
 			@funcs = {}
 			@macros = {}
 			@blocks = {}
-
-			defhandler = TMD::MacroHandler::Defaults::MHBasics.new
-			defhandler.set_processor(self)
-
-			ctrlhandler = TMD::MacroHandler::Defaults::MHControlStructures.new
-			ctrlhandler.set_processor(self)
-
-			block_basics = TMD::BlockHandler::Defaults::BasicHtml.new
-			block_basics.set_processor(self)
 
 			@noop_macro = TMD::MacroHandler::Defaults::NoOpHandler.new
 			@noop_block = TMD::BlockHandler::Defaults::NoOpHandler.new
@@ -262,7 +254,6 @@ module TMD
 					if fn.is_a?(Array) && fn[0] == :fn
 						macro = fn[1][1..fn[1].length]
 						args = fn[2]
-
 						if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
 							delim = expr_struct[-1][1]
 						end
@@ -293,7 +284,7 @@ module TMD
 							block = nil
 						end
 					else
-						block.collect(oline)
+						block.cur.collect(oline)
 					end
 					next
 				end
@@ -372,7 +363,6 @@ module TMD
 			end
 
 			if block_handler
-				$stderr.write("ENDING BLOCK: #{line}\n")
 				block_handler.collect(line, buff, indents, indent) if line
 				block_handler.collect(nil, buff)
 			end
@@ -538,34 +528,6 @@ module TMD
 			return expand_expr(buff.join(''))
 		end
 
-		def fmt_cell(val, header = false, colnum = 0)
-			tag = header ? 'th' : 'td'
-			buff = []
-			attribs = ''
-			# @todo unescape \
-			if val[0] == '!'
-				rt = val.index('!', 1)
-				attribs = val[1...rt]
-				val = val[rt+1..val.length]
-			end
-
-			if attribs.match(/class=/)
-				attribs = attribs.gsub(/class=(['"])/, 'class=$1' + "td-col-#{colnum}")
-			else
-				attribs += " class='td-col-#{colnum}'"
-			end
-
-			buff << "<#{tag} #{attribs}>"
-			cclass = 
-			if val[0] == '\\'
-				val = val[1..val.length]
-			end
-
-			buff << fmt_line(val)
-			buff << "</#{tag}>"
-			return buff.join('')
-		end
-
 		# Adds a reference. Example formats:
 		#
 		# <pre>
@@ -586,3 +548,4 @@ end
 require_relative './tmd/expression-evaluator.rb'
 require_relative './tmd/macro-handler.rb'
 require_relative './tmd/block-handler.rb'
+require_relative './tmd/bundles.rb'

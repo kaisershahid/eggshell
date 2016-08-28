@@ -7,10 +7,12 @@ if !f || !File.exists?(f)
 	exit
 end
 
+# @todo parse out environment variables
+
 $tmd = TMD::Processor.new
 $tmd._info("PROCESSING #{f}")
-
 $tmd.vars[:include_paths] << File.realdirpath(File.dirname(f))
+TMD::Bundles::Registry.attach_bundle('basics', $tmd)
 
 output = $tmd.process(IO.readlines(f))
 puts output

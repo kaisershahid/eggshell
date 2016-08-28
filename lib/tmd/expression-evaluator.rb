@@ -238,7 +238,9 @@ class TMD::ExpressionEvaluator
 				term = ''
 			elsif tok == '{'
 				# special case: end delimiter
-				if state[d] == :nil && last_state == :fnop
+				if state[d] == :nil && (last_state == :fnop || last_state == :term)
+					# normalize what would be :var to :fn because of something like 'func {'
+					ptr[-1][0] = :fn
 					delim = '{'
 					while toks[i]
 						delim += toks[i]
@@ -443,9 +445,16 @@ class TMD::ExpressionEvaluator
 					last_state = state.pop
 					d -= 1
 				elsif state[d] == :map
-					# ?
 				elsif state[d-1] == :fnop
 					ptr << term_val(term, last_state == :quote)
+					term = nil
+				else
+					val = term_val(term, last_state == :quote)
+					if ptr.is_a?(ExprArray)
+						ptr.add_term(val)
+					else
+						ptr << val
+					end
 					term = nil
 				end
 
@@ -465,7 +474,13 @@ class TMD::ExpressionEvaluator
 			ptr << [:str, term]
 		else
 			if term
-				ptr << [:var, term]
+				if state[d] == :map
+					ptr.add_term(last_key.pop, term_val(term))
+				elsif state[d] == :arr
+					ptr.add_term(term_val(term))
+				else
+					ptr << term_val(term)
+				end
 			end
 		end
 
