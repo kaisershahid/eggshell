@@ -1,4 +1,4 @@
-class TMD::Bundles::Basics
+class Eggshell::Bundles::Basics
 	BUNDLE_ID = 'basics'
 
 	def self.new_instance(proc, opts = nil)
@@ -9,13 +9,13 @@ class TMD::Bundles::Basics
 		bbasics.set_processor(proc)
 		mbasics.set_processor(proc)
 		mcntrls.set_processor(proc)
-		proc.register_functions('', StdFunctions.FUNC_NAMES)
+		proc.register_functions('', StdFunctions::FUNC_NAMES)
 	end
 
 	# `table` block parameters:
 	# - `row.classes`: defaults to `['odd', 'even']`. The number of elements represents the number of cycles.
 	class BasicBlocks
-		include TMD::BlockHandler
+		include Eggshell::BlockHandler
 
 		CELL_ATTR_START = '!'
 		CELL_ATTR_END = '<!'
@@ -287,7 +287,7 @@ class TMD::Bundles::Basics
 	# - `capture`
 	# - `var`
 	class BasicMacros
-		include TMD::MacroHandler
+		include Eggshell::MacroHandler
 
 		def initialize
 			@capvar = nil
@@ -295,8 +295,8 @@ class TMD::Bundles::Basics
 			@depth = 0
 		end
 
-		def set_processor(tmd)
-			@proc = tmd
+		def set_processor(eggshell)
+			@proc = eggshell
 			@proc.register_macro(self, *%w(! capture var include process parse_test))
 		end
 
@@ -375,7 +375,7 @@ class TMD::Bundles::Basics
 	end
 
 	class ControlMacros
-		include TMD::MacroHandler
+		include Eggshell::MacroHandler
 
 		def initialize
 			@stack = []
@@ -383,8 +383,8 @@ class TMD::Bundles::Basics
 			@macstack = []
 		end
 
-		def set_processor(tmd)
-			@proc = tmd
+		def set_processor(eggshell)
+			@proc = eggshell
 			@proc.register_macro(self, *%w(if elsif else loop for while break next))
 		end
 
@@ -477,7 +477,7 @@ class TMD::Bundles::Basics
 
 				if macname != :else
 					if !st[:cond_eval]
-						cond_struct = TMD::ExpressionEvaluator.struct(cond)
+						cond_struct = Eggshell::ExpressionEvaluator.struct(cond)
 						st[:cond_eval] = @proc.expr_eval(cond_struct)[0]
 						#puts "#{cond_struct[0]} => #{st[:cond_eval]}"
 						#puts "\t#{@proc.vars['i']}, #{@proc.vars['j']}"
@@ -527,7 +527,7 @@ class TMD::Bundles::Basics
 			return if !lines
 			ln = []
 			lines.each do |line|
-				if line.is_a?(TMD::Block)
+				if line.is_a?(Eggshell::Block)
 					if ln.length > 0
 						buffer << @proc.process(ln, depth)
 						ln = []
@@ -560,5 +560,5 @@ class TMD::Bundles::Basics
 		FUNC_NAMES = %w(str_repeat).freeze
 	end
 
-	include TMD::Bundles::Bundle
+	include Eggshell::Bundles::Bundle
 end

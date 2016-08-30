@@ -1,4 +1,4 @@
-module TMD::BlockHandler
+module Eggshell::BlockHandler
 	# Indicates that subsequent lines should be collected.
 	COLLECT = :collect
 	# Indicates that the current line ends the block and all collected
@@ -20,7 +20,7 @@ module TMD::BlockHandler
 
 	module Defaults
 		class NoOpHandler
-			include TMD::BlockHandler
+			include Eggshell::BlockHandler
 		end
 	end
 end

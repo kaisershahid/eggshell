@@ -2,11 +2,11 @@
 # makes it easy to create and distribute functionality, as well as configure 
 # automatic bundle loading within your own environment.
 #
-# The bundle [**must**] include the static method `new_instance(TMD::Processor proc, Hash opts = nil)`
+# The bundle [**must**] include the static method `new_instance(Eggshell::Processor proc, Hash opts = nil)`
 #
 # If the class has `BUNDLE_ID` defined, the bundle will be registered with that
 # id, otherwise, it will use its class name.
-module TMD::Bundles
+module Eggshell::Bundles
 
 	# Helper module that automatically registers the bundle class extending it.
 	module Bundle

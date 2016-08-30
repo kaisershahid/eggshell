@@ -1,4 +1,4 @@
-module TMD; end
+module Eggshell; end
 # Parses and evaluates statements (expressions).
 #
 # pre.
@@ -19,7 +19,7 @@ module TMD; end
 # # function calls
 # fn1(arg1, "arg2", 3) + fn2({}, [])
 # /pre
-class TMD::ExpressionEvaluator
+class Eggshell::ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
 	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
 
@@ -62,7 +62,7 @@ class TMD::ExpressionEvaluator
 				if term[0] == :op
 					
 				end
-				term, dyn = TMD::ExpressionEvaluator::struct_compact(term)
+				term, dyn = Eggshell::ExpressionEvaluator::struct_compact(term)
 				if dyn
 					@dynamic = true
 					@dyn_keys << self.length
@@ -86,7 +86,7 @@ class TMD::ExpressionEvaluator
 					@dyn_keys << key
 				end					
 			elsif term.is_a?(Array)
-				term, dyn = TMD::ExpressionEvaluator::struct_compact(term)
+				term, dyn = Eggshell::ExpressionEvaluator::struct_compact(term)
 				if dyn
 					@dynamic = true
 					@dyn_keys << key
@@ -792,7 +792,7 @@ class TMD::ExpressionEvaluator
 
 	def self.test_struct
 		vtable = {'val' => 'VALUE'}
-		ftable = {'' => TMD::ExpressionEvaluator}
+		ftable = {'' => Eggshell::ExpressionEvaluator}
 
 		expr1 = "x.y[0]['1']"
 		expr2 = "fn(#{expr1}, a[1])"
@@ -837,9 +837,9 @@ class TMD::ExpressionEvaluator
 end
 
 # s = 'i == 4 && j == 2'
-# puts TMD::ExpressionEvaluator.struct("@var('simplearr', [1,2,3]) {")[0].inspect
-# puts TMD::ExpressionEvaluator.struct('i == 4 && (j == 2) - 1')[0].inspect
+# puts Eggshell::ExpressionEvaluator.struct("@var('simplearr', [1,2,3]) {")[0].inspect
+# puts Eggshell::ExpressionEvaluator.struct('i == 4 && (j == 2) - 1')[0].inspect
 # expr = '5 + 6 * 7 && (j == 2) - 1'
-# puts TMD::ExpressionEvaluator.restructure(TMD::ExpressionEvaluator.struct(expr)[0])
+# puts Eggshell::ExpressionEvaluator.restructure(Eggshell::ExpressionEvaluator.struct(expr)[0])
 # m = {'i' => 4, 'j' => 2}
-#puts TMD::ExpressionEvaluator.expr_eval(z,m,nil)
+#puts Eggshell::ExpressionEvaluator.expr_eval(z,m,nil)

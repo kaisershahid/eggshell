@@ -1,5 +1,5 @@
 # TechnicalMarkDown
-module TMD
+module Eggshell
 	# For complex nested content, use the block to execute content correctly.
 	# Quick examples: nested loops, conditional statements.
 	class Block
@@ -63,8 +63,8 @@ module TMD
 			@blocks = {}
 			@expr_cache = {}
 
-			@noop_macro = TMD::MacroHandler::Defaults::NoOpHandler.new
-			@noop_block = TMD::BlockHandler::Defaults::NoOpHandler.new
+			@noop_macro = Eggshell::MacroHandler::Defaults::NoOpHandler.new
+			@noop_block = Eggshell::BlockHandler::Defaults::NoOpHandler.new
 		end
 
 		def register_macro(handler, *macros)
@@ -126,7 +126,7 @@ module TMD
 		attr_reader :vars
 
 		def expr_eval(struct)
-			return TMD::ExpressionEvaluator.expr_eval(struct, @vars, @funcs)
+			return Eggshell::ExpressionEvaluator.expr_eval(struct, @vars, @funcs)
 		end
 
 		# Expands expressions (`\${}`) and macro calls (`\@@macro\@@`).
@@ -170,7 +170,7 @@ module TMD
 						struct = @expr_cache[expr_str]
 
 						if !struct
-							struct = TMD::ExpressionEvaluator.struct(expr_str)
+							struct = Eggshell::ExpressionEvaluator.struct(expr_str)
 							@expr_cache[expr_str] = struct
 						end
 
@@ -386,9 +386,9 @@ module TMD
 
 				if block_handler
 					stat = block_handler.collect(line, buff, indents, indent_level)
-					if stat != TMD::BlockHandler::COLLECT
+					if stat != Eggshell::BlockHandler::COLLECT
 						block_handler = nil
-						if stat == TMD::BlockHandler::RETRY
+						if stat == Eggshell::BlockHandler::RETRY
 							i -= 1
 						end
 					end
@@ -404,7 +404,7 @@ module TMD
 						in_html = true
 					end
 
-					line = $tmd.expand_expr(line) if !@vars['html.no_eval']
+					line = $eggshell.expand_expr(line) if !@vars['html.no_eval']
 					buff << line
 					@vars.delete('html.no_eval')
 
@@ -433,9 +433,9 @@ module TMD
 				block_handler = @blocks[block_type]
 				block_handler = @noop_block if !block_handler 
 				stat = block_handler.start(block_type, line, buff, indents, indent_level)
-				if stat != TMD::BlockHandler::COLLECT
+				if stat != Eggshell::BlockHandler::COLLECT
 					block_handler = nil
-					if stat == TMD::BlockHandler::RETRY
+					if stat == Eggshell::BlockHandler::RETRY
 						i -= 1
 						next
 					end
@@ -635,11 +635,7 @@ module TMD
 	end
 end
 
-require_relative './tmd/expression-evaluator.rb'
-require_relative './tmd/macro-handler.rb'
-require_relative './tmd/block-handler.rb'
-require_relative './tmd/bundles.rb'
-
-$tmd = TMD::Processor.new
-$tmd.vars['jack'] = 1
-puts $tmd.fmt_line("\\${jack + 1} is ${jack + 1}! this is [*bold*] [_italic_] [-strike-] [*[-_underline_-]*] @@macro@@ @@macro_args(1,2)@@")
+require_relative './eggshell/expression-evaluator.rb'
+require_relative './eggshell/macro-handler.rb'
+require_relative './eggshell/block-handler.rb'
+require_relative './eggshell/bundles.rb'
