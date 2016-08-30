@@ -61,6 +61,7 @@ module TMD
 			@funcs = {}
 			@macros = {}
 			@blocks = {}
+			@expr_cache = {}
 
 			@noop_macro = TMD::MacroHandler::Defaults::NoOpHandler.new
 			@noop_block = TMD::BlockHandler::Defaults::NoOpHandler.new
@@ -89,7 +90,7 @@ module TMD
 		# @param Object handler
 		# @param Array func_names If `func_key` only refers to a namespace but the handler
 		# needs to only handle a subset of functions, supply the list of function names here.
-		def register_function(func_key, handler, func_names = nil)
+		def register_functions(func_key, handler, func_names = nil)
 			if !func_key.index(':') && func_names.is_a?(Array)
 				func_names.each do |fname|
 					@funcs[func_key+func_name] = handler
@@ -128,38 +129,94 @@ module TMD
 			return TMD::ExpressionEvaluator.expr_eval(struct, @vars, @funcs)
 		end
 
-		# Expands expressions within `\${}`. Currently only inserts variables by key.
+		# Expands expressions (`\${}`) and macro calls (`\@@macro\@@`).
 		def expand_expr(expr)
 			# replace dynamic placeholders
 			# @todo expand to actual expressions
 			buff = []
 			esc = false
 			exp = false
-			expr.split(/(\\|\$\[|\$\{|\]|\})/).each do |ele|
-				if ele == '\\'
-					esc = true
-					next
-				elsif ele == ''
-					next
-				end
+			mac = false
+
+			toks = expr.split(/(\\|\$\{|\}|@@|"|')/)
+			i = 0
+
+			plain_str = ''
+			expr_str = ''
+			quote = nil
+			expr_delim = nil
+
+			while i < toks.length
+				tok = toks[i]
+				i += 1
+				next if tok == ''
 
 				if esc
-					buff << ele
+					plain_str += tok
 					esc = false
 					next
 				end
 
-				# @todo keep track of '{' to match against '}'
-				if ele == '$[' || ele == '${'
+				if exp
+					if quote
+						expr_str += tok
+						if tok == quote
+							quote = nil
+						end
+					elsif tok == '"' || tok == "'"
+						expr_str += tok
+						quote = tok
+					elsif tok == expr_delim
+						struct = @expr_cache[expr_str]
+
+						if !struct
+							struct = TMD::ExpressionEvaluator.struct(expr_str)
+							@expr_cache[expr_str] = struct
+						end
+
+						if !mac
+							buff << expr_eval(struct)
+						else
+							args = struct[0]
+							macro = args[1]
+							args = args[2] || []
+							macro_handler = @macros[macro]
+							if macro_handler
+								macro_handler.process(buff, macro, args, nil, -1)
+							else
+								_warn("macro (inline) not found: #{macro}")
+							end
+						end
+
+						exp = false
+						mac = false
+						expr_delim = nil
+						expr_str = ''
+					else
+						expr_str += tok
+					end
+				# only unescape if not in expression, since expression needs to be given as-is
+				elsif tok == '\\'
+					esc = true
+					next
+				elsif tok == '${' || tok == '@@'
+					if plain_str != ''
+						buff << plain_str
+						plain_str = ''
+					end
 					exp = true
-				elsif exp && (ele == ']' || ele == '}')
-					exp = false
-				elsif exp
-					buff << @vars[ele]
+					expr_delim = '}'
+					if tok == '@@'
+						mac = true
+						expr_delim = tok
+					end
 				else
-					buff << ele
+					plain_str += tok
 				end
 			end
+
+			# if exp -- throw exception?
+			buff << plain_str if plain_str != ''
 
 			return buff.join('')
 		end
@@ -195,8 +252,20 @@ module TMD
 
 			i = 0
 
-			while (i < lines.length)
-				line = lines[i]
+			while (i <= lines.length)
+				line = nil
+
+				# special condition to get a dangling line
+				if i == lines.length
+					if ext_line
+						line = ext_line
+						ext_line = nil
+					else
+						break
+					end
+				else
+					line = lines[i]
+				end
 				i += 1
 
 				if line.is_a?(Block)
@@ -376,13 +445,6 @@ module TMD
 				end
 			end
 
-			# @todo if not block_handler, need to find block handler
-			if ext_line
-				line = ext_line
-				if !block_handler
-				end
-			end
-
 			if block_handler
 				block_handler.collect(line, buff, indents, indent_level) if line
 				block_handler.collect(nil, buff)
@@ -399,7 +461,11 @@ module TMD
 			'*]'=> '</b>',
 			'**]' => '</strong>',
 			'_]' => '</i>',
-			'__]' => '</em>'
+			'__]' => '</em>',
+			'[-_' => '<u>',
+			'_-]' => '</u>',
+			'[-' => '<strike>',
+			'-]' => '</strike>'
 		}.freeze
 
 		HASH_HTML_ESCAPE = {
@@ -427,6 +493,9 @@ module TMD
 			cd = false
 			an = false
 			im = false
+
+			macro = false
+			macro_buff = ''
 
 			# split and preserve delimiters: ` {{ }} [[ ]]
 			# - preserve contents of code blocks (only replacing unescaped placeholder values)
@@ -509,7 +578,7 @@ module TMD
 						end
 					end
 				else
-					part = part.gsub(/(\[\*{1,2}|\*{1,2}\]|\[_{1,2}|_{1,2}\])/, HASH_FMT_DECORATORS)
+					part = part.gsub(/(\[\*{1,2}|\*{1,2}\]|\[_{1,2}|_{1,2}\]|\[-_?|_?-\])/, HASH_FMT_DECORATORS)
 
 					# handle sub & sup scripts specially. if prefixed with '!', resolve and link to internal footnote
 					part = part.gsub(/\/\^(.+)\^\//) do |match|
@@ -570,3 +639,7 @@ require_relative './tmd/expression-evaluator.rb'
 require_relative './tmd/macro-handler.rb'
 require_relative './tmd/block-handler.rb'
 require_relative './tmd/bundles.rb'
+
+$tmd = TMD::Processor.new
+$tmd.vars['jack'] = 1
+puts $tmd.fmt_line("\\${jack + 1} is ${jack + 1}! this is [*bold*] [_italic_] [-strike-] [*[-_underline_-]*] @@macro@@ @@macro_args(1,2)@@")

@@ -9,6 +9,7 @@ class TMD::Bundles::Basics
 		bbasics.set_processor(proc)
 		mbasics.set_processor(proc)
 		mcntrls.set_processor(proc)
+		proc.register_functions('', StdFunctions.FUNC_NAMES)
 	end
 
 	# `table` block parameters:
@@ -548,10 +549,15 @@ class TMD::Bundles::Basics
 		protected :process_lines
 	end
 
+	# Baseline functions.
+	# @todo catch exceptions???
 	module StdFunctions
+		# Repeats `str` by a given `amt`
 		def self.str_repeat(str, amt)
 			return str * amt
 		end
+
+		FUNC_NAMES = %w(str_repeat).freeze
 	end
 
 	include TMD::Bundles::Bundle
