@@ -224,6 +224,7 @@ class TMD::Bundles::Basics
 				end
 
 				if blank
+					@lines.delete('')
 					start_tag = ''
 					end_tag = ''
 					if @type != 'raw'
@@ -316,7 +317,7 @@ class TMD::Bundles::Basics
 				# @todo support multiple vars via lines
 				# @todo expand value if expression
 				if args.length >= 2
-					key = args[0][1]
+					key = args[0]
 					val = args[1]
 					if val.is_a?(Array)
 						if val[0] == :str
@@ -383,64 +384,82 @@ class TMD::Bundles::Basics
 
 		def set_processor(tmd)
 			@proc = tmd
-			@proc.register_macro(self, *%w(if elsif else loop for while))
+			@proc.register_macro(self, *%w(if elsif else loop for while break next))
 		end
 
 		def process(buffer, macname, args, lines, depth)
 			p0 = args.is_a?(Array) ? args[0] : nil
+			lines ? lines.delete('') : ''
 
+			macname = macname.to_sym
 			st = @state[depth]
 			if !@state[depth]
-				st = {}
+				st = {:type => macname}
 
 				@state[depth] = st
 				# erase nested state
 				@state[depth+1] = nil
 			end
 
-			if macname == 'for' || macname == 'loop' || macname == 'while'
+			if macname == :for || macname == :loop
 				st[:var] = p0['var']
 				st[:start] = p0['start']
-				st[:stop] = p0['end']
+				st[:stop] = p0['stop']
 				st[:step] = p0['step'] || 1
-				st[:iter] = nil
+				st[:iter] = p0['items'] || 'items'
 				st[:item] = p0['item'] || 'item'
+				st[:counter] = p0['counter'] || 'counter'
 
 				mbuff = []
-				if macname == 'for'
-					#puts "for: #{st[:var]}=#{st[:start]} (#{st[:start.class]}) / step=#{st[:step]} #{st[:step.class]}"
-					@proc.vars[st[:var]] = st[:start]
+				looper = nil
+				loop_is_map = false
 
-					bf = []
-					ln = []
-					while (@proc.vars[st[:var]] <= st[:stop])
-						#puts "#{var} => #{@proc.vars[var]} #{@proc.vars[var].class}"
-						#puts "\t\t" +lines.inspect
-						#buffer << @proc.process(lines, depth + 1)
-						lines.each do |line|
-							if line.is_a?(TMD::Block)
-								if ln.length > 0
-									buffer << @proc.process(ln, depth + 1)
-									ln = []
-								end
-								line.process(buffer, depth + 1)
-							else
-								ln << line
-							end
-						end
-						if ln.length > 0
-							buffer << @proc.process(ln, depth + 1)
-						end
-
-						@proc.vars[st[:var]] += st[:step]
+				# in for, construct range that can be looped over
+				# in loop, detect 'each' method
+				if macname == :for
+					st[:item] = st[:var]
+					looper = Range.new(st[:start], st[:stop]).step(st[:step]).to_a
+				elsif macname == :loop
+					begin
+						looper = st[:iter].is_a?(Array) && st[:iter][0].is_a?(Symbol) ? @proc.expr_eval(st[:iter]) : st[:iter]
+						looper = nil if !looper.respond_to?(:each)
+						loop_is_map = looper.is_a?(Hash)
+					rescue
 					end
-				else
-					buffer << "-- defer #{macname} (#{depth})"
 				end
-			elsif macname == 'if' || macname == 'elsif' || macname == 'else'
+
+				if looper
+					counter = 0
+					looper.each do |i1, i2|
+						# for maps, use key as the counter
+						val = nil
+						if loop_is_map
+							@proc.vars[st[:counter]] = i1
+							val = i2
+						else
+							val = i1
+							@proc.vars[st[:counter]] = counter
+						end
+
+						@proc.vars[st[:item]] = val.is_a?(Array) && val[0].is_a?(Symbol) ? @proc.expr_eval(val) : val
+						process_lines(lines, buffer, depth + 1)
+						break if st[:break]
+
+						counter += 1
+					end
+				end
+
+				# clear state
+				@state[depth] = nil
+			elsif macname == :while
+				while @proc.expr_eval(p0)
+					process_lines(lines, buffer, depth + 1)
+					break if st[:break]
+				end
+			elsif macname == :if || macname == :elsif || macname == :else
 				cond = p0
-				st[:if] = true if macname == 'if'
-				if st[:cond_count] == nil || macname == 'if'
+				st[:if] = true if macname == :if
+				if st[:cond_count] == nil || macname == :if
 					st[:cond_count] = 0 
 					st[:cond_eval] = false
 					st[:cond_met] = false
@@ -450,16 +469,17 @@ class TMD::Bundles::Basics
 				st[:last_action] = macname.to_sym
 
 				# @todo more checks (e.g. no elsif after else, no multiple else, etc.)
-				if !st[:if] || (macname != 'else' && !cond)
+				if !st[:if] || (macname != :else && !cond)
 					# @todo exception?
 					return
 				end
 
-				if macname != 'else'
+				if macname != :else
 					if !st[:cond_eval]
-						cond = TMD::ExpressionEvaluator.struct(cond)
-						st[:cond_eval] = @proc.expr_eval(cond)[0]
-						#puts "cond = #{cond.inspect}\n\teval=#{st[:cond_eval]}"
+						cond_struct = TMD::ExpressionEvaluator.struct(cond)
+						st[:cond_eval] = @proc.expr_eval(cond_struct)[0]
+						#puts "#{cond_struct[0]} => #{st[:cond_eval]}"
+						#puts "\t#{@proc.vars['i']}, #{@proc.vars['j']}"
 					end
 				else
 					st[:cond_eval] = true
@@ -467,23 +487,70 @@ class TMD::Bundles::Basics
 
 				if st[:cond_eval] && !st[:cond_met]
 					st[:cond_met] = true
-					ln = []
-					lines.each do |line|
-						if line.is_a?(TMD::Block)
-							if ln.length > 0
-								buffer << @proc.process(ln, depth + 1)
-								ln = []
-							end
-							line.process(buffer, depth + 1)
-						else
-							ln << line
-						end
+					process_lines(lines, buffer, depth + 1)
+				end
+			elsif macname == :break
+				lvl = p0 || 1
+				i = depth - 1
+
+				# set breaks at each found loop until # of levels reached
+				while i >= 0
+					st = @state[i]
+					i -= 1
+					next if !st
+					if st[:type] == :for || st[:type] == :while || st[:type] == :loop
+						lvl -= 1
+						st[:break] = true
+						break if lvl <= 0
 					end
-					if ln.length > 0
-						buffer << @proc.process(ln, depth + 1)
+				end
+			elsif macname == :next
+				lvl = p0 || 1
+				i = depth - 1
+
+				# set breaks at each found loop until # of levels reached
+				while i >= 0
+					st = @state[i]
+					i -= 1
+					next if !st
+					if st[:type] == :for || st[:type] == :while || st[:type] == :loop
+						lvl -= 1
+						st[:next] = true
+						break if lvl <= 0
 					end
 				end
 			end
+		end
+
+		def process_lines(lines, buffer, depth)
+			return if !lines
+			ln = []
+			lines.each do |line|
+				if line.is_a?(TMD::Block)
+					if ln.length > 0
+						buffer << @proc.process(ln, depth)
+						ln = []
+					end
+					line.process(buffer, depth)
+					if @state[depth-1][:next]
+						@state[depth-1][:next] = false
+						break
+					end
+				else
+					ln << line
+				end
+			end
+			if ln.length > 0
+				buffer << @proc.process(ln, depth)
+			end
+		end
+
+		protected :process_lines
+	end
+
+	module StdFunctions
+		def self.str_repeat(str, amt)
+			return str * amt
 		end
 	end
 

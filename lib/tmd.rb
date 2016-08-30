@@ -41,7 +41,6 @@ module TMD
 		end
 
 		def process(buffer, depth = nil)
-			#puts ">>block.process: #{@macro} => #{@lines.inspect}"
 			@handler.process(buffer, @macro, @args, @lines, depth == nil ? @depth : depth)
 		end
 
@@ -78,6 +77,25 @@ module TMD
 			blocks.each do |block|
 				@blocks[block] = handler
 				_trace "register_block: #{block}: #{handler}"
+			end
+		end
+
+		# Registers a function for embedded expressions. Functions are grouped into namespaces,
+		# and a handler can be assigned to handle all function calls within that namespace, or
+		# a specific set of functions within the namespace. The root namespace is a blank string.
+		#
+		# @param String func_key In the form `ns` or `ns:func_name`. For functions in the 
+		# root namespace, do `:func_name`.
+		# @param Object handler
+		# @param Array func_names If `func_key` only refers to a namespace but the handler
+		# needs to only handle a subset of functions, supply the list of function names here.
+		def register_function(func_key, handler, func_names = nil)
+			if !func_key.index(':') && func_names.is_a?(Array)
+				func_names.each do |fname|
+					@funcs[func_key+func_name] = handler
+				end
+			else
+				@funcs[func_key] = handler
 			end
 		end
 
@@ -162,13 +180,13 @@ module TMD
 			in_block = false
 			in_dl = false
 
-			capturing = false
-			cap_buff = nil
-			cap_var = nil
+			indent_level = 0
+			indents = ''
 
 			macro = nil
 			macro_blocks = []
 			macro_handler = nil
+			macro_depth = call_depth + 1
 
 			block = nil
 			ext_line = nil
@@ -176,6 +194,7 @@ module TMD
 			block_handler = nil
 
 			i = 0
+
 			while (i < lines.length)
 				line = lines[i]
 				i += 1
@@ -187,16 +206,12 @@ module TMD
 
 				oline = line
 
-				indent_level = 0
-				indents = ''
 				if line[0] == TAB || line[0..3] == TAB_SPACE
 					tab = line[0] == TAB ? TAB : TAB_SPACE
 					indent_level += 1
 					offset = tab.length
-					#$stderr.write "\t[#{offset}, #{offset+tab.length}]\n"
 					while line[offset...offset+tab.length] == tab
 						indent_level += 1
-						#$stderr.write "\t>#{indent_level}\n"
 						offset += tab.length
 					end
 					indents = line[0...offset]
@@ -242,26 +257,33 @@ module TMD
 				end
 				oline = line
 
+				if line[0..1] == '!#'
+					next
+				end
+
 				# macro processing
 				if line[0] == '@'
 					macro = nil
 					args = nil
 					delim = nil
 
-					# since the macro statement is essentially a function call, parse the line as an expression
-					expr_struct = ExpressionEvaluator.struct(line)
-					fn = expr_struct.shift
-					if fn.is_a?(Array) && fn[0] == :fn
-						macro = fn[1][1..fn[1].length]
-						args = fn[2]
-						if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
-							delim = expr_struct[-1][1]
+					if line.index(' ') || line.index('(') || line.index('{')
+						# since the macro statement is essentially a function call, parse the line as an expression
+						expr_struct = ExpressionEvaluator.struct(line)
+						fn = expr_struct.shift
+						if fn.is_a?(Array) && fn[0] == :fn
+							macro = fn[1][1..fn[1].length]
+							args = fn[2]
+							if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
+								delim = expr_struct[-1][1]
+							end
 						end
+					else
+						macro = line[1..line.length]
 					end
 
 					macro_handler = @macros[macro]
 					if macro_handler
-						macro_depth = call_depth + 1
 						if delim
 							if block
 								nblock = Block.new(macro, macro_handler, args, block.cur.depth + 1, delim)
@@ -270,7 +292,11 @@ module TMD
 								block = Block.new(macro, macro_handler, args, macro_depth, delim)
 							end
 						else
-							macro_handler.process(buff, macro, args, nil, macro_depth)
+							if block
+								block.collect(Block.new(macro, macro_handler, args, macro_depth, nil))
+							else
+								macro_handler.process(buff, macro, args, nil, macro_depth)
+							end
 						end
 					else
 						_warn("macro not found: #{macro}")
@@ -286,11 +312,6 @@ module TMD
 					else
 						block.cur.collect(oline)
 					end
-					next
-				end
-
-				if line[0] == '!'
-					# @todo is this needed?
 					next
 				end
 
@@ -363,7 +384,7 @@ module TMD
 			end
 
 			if block_handler
-				block_handler.collect(line, buff, indents, indent) if line
+				block_handler.collect(line, buff, indents, indent_level) if line
 				block_handler.collect(nil, buff)
 			end
 

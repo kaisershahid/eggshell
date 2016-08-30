@@ -27,16 +27,20 @@ class TMD::ExpressionEvaluator
 	LOG_LEVEL = 0
 
 	OP_PRECEDENCE = {
+		'++' => 150, '--' => 150,
 		'*' => 60, '/' => 60, '%' => 60,
 		'<<' => 55, '>>' => 55,
-		'<' => 54, '>' => 54, '<=' => 54, '=>' => 54,
-		'==' => 53, '!=' => 52,
-		'&' => 50,
-		'^' => 49,
-		'|' => 48,
-		'+' => 47, '-' => 47,
-		'&&' => 45,
-		'||' => 44
+		'+' => 51, '-' => 50,
+		'<' => 49, '>' => 49, '<=' => 49, '=>' => 49,
+		'==' => 48, '!=' => 48,
+		'&' => 39,
+		'^' => 38,
+		'|' => 37,
+		'&&' => 36,
+		'||' => 35
+	}.freeze
+
+	OP_RTL = {
 	}.freeze
 
 	class ExprArray < Array
@@ -106,6 +110,10 @@ class TMD::ExpressionEvaluator
 				return term.to_f
 			elsif term == 'null' || term == 'nil'
 				return nil
+			elsif term == 'true'
+				return true
+			elsif term == 'false'
+				return false
 			end
 
 			return [:var, term]
@@ -120,34 +128,43 @@ class TMD::ExpressionEvaluator
 		while frag[3].is_a?(Array)
 			frag = frag[3]
 		end
-		frag[3] = term_val(term)
+		frag[3] = term
 	end
 
 	# Restructures operands if new operator has higher predence than previous operator.
-	# @param String tok New operator.
+	# @param String nop New operator.
 	# @param Array frag Operator fragment.
 	# @param Array stack Fragment stack.
-	def self.op_precedence(tok, frag, stack)
+	def self.op_precedence(nop, frag, stack)
 		topfrag = frag
-		lptr = nil
+		lptr = topfrag
+
 		# retrieve the right-most operand
+		# lptr = [opB, [opA, left, right], [opC, left, right]]
+		# frag = [opC, left, right]
 		while frag[3].is_a?(Array) && frag[3][0] == :op
 			lptr = frag
 			frag = frag[3]
 		end
-		lptr = topfrag if !lptr
 
 		if frag[0] == :op
-			p1 = OP_PRECEDENCE[tok]
-			p0 = OP_PRECEDENCE[frag[1]]
-			if p1 > p0
-				frag[3] = [:op, tok, frag[3], nil]
+			oop = frag[1]
+			p0 = OP_PRECEDENCE[oop]
+			p1 = OP_PRECEDENCE[nop]
+
+			if p0 > p1
+				# preserve previous fragment and make as left term of new op
+				# [opA, left, right] ==> [opB, [opA, left, right], nil]
+				nfrag = [:op, nop, topfrag.clone, nil]
+				lptr[1] = nop
+				lptr[2] = nfrag[2]
+				lptr[3] = nil
 			else
-				lptr[3] = [:op, tok, [:op, frag[1], frag[2], frag[3]], nil]
+				frag[3] = [:op, nop, frag[3], nil]
 			end
 			stack << topfrag
 		else
-			stack << [:op, tok, frag, nil]
+			stack << [:op, nop, frag, nil]
 		end
 	end
 
@@ -211,7 +228,6 @@ class TMD::ExpressionEvaluator
 			i += 1
 			next if tok == ''
 
-			#puts "#{state[d]}: #{tok} / #{last_state}"
 			# assumes term has been initialized through open quote
 			# @todo any other contexts that \ is useful?
 			if tok == '\\'
@@ -225,7 +241,10 @@ class TMD::ExpressionEvaluator
 					quote_delim = nil
 					state.pop
 					d -= 1
-					if state[d] != :map
+					if state[d] == :op
+						op_insert(ptr[-1], term)
+						term = nil
+					elsif state[d] != :map
 						ptr << term
 						term = nil
 					end
@@ -294,14 +313,13 @@ class TMD::ExpressionEvaluator
 				if state[d] == :map
 					ptr.add_term(last_key.pop, map)
 				else
-					ptr.is_a?(ExprArray) ? ptr.add_term(map) : ptr.push(map)
+					ptr << map
 				end
 			elsif last_state == :term && tok == ']'
 				term += ']'
 			elsif state[d] == :arr && tok == ']'
 				if term
-					term = term_val(term, last_state == :quote)
-					ptr.add_term(term)
+					ptr << term_val(term, last_state == :quote)
 					term = nil
 				end
 
@@ -315,7 +333,9 @@ class TMD::ExpressionEvaluator
 					term = arr
 				end
 			elsif tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
+				nest = last_state == :nest
 				state << :op
+				last_state = :op
 				d += 1
 				if term
 					if ptr.length == 0
@@ -325,13 +345,19 @@ class TMD::ExpressionEvaluator
 						# @TODO this doesn't make sense. if there's a dangling term then there's a syntax error
 						# ... x + y z - a ==> 'z' would be the term before '-' for something like this to happen
 						last = ptr.pop
-						ptr << [:op, tok, last, term_val(term)]
+						ptr << [:op, tok, last, term_val(term, last_state == :quote)]
 					end
 				else
 					if ptr.length > 0
 						frag = ptr.pop
-						# when you have x + y / ..., make it x + (y / ...)
-						op_precedence(tok, term_val(frag), ptr)
+						# preserve nested expression
+						if nest
+							nested = frag[3].clone
+							frag[3] = [:op, tok, nested, nil]
+							ptr << frag
+						else
+							op_precedence(tok, frag, ptr) # term_val(frag, last_state == :quote)
+						end
 					end
 				end
 			elsif tok == '('
@@ -364,12 +390,22 @@ class TMD::ExpressionEvaluator
 					state.pop
 					d -= 1
 				end
-				lstate = last_state = state.pop
+
+				lstate = state.pop
 				lstack = stack.pop
 				ptr = stack[-1]
-				d = state.length - 1
+				d -= 1
 
-				if lstate == :nest
+				if lstate == :op
+					term = term_val(term, last_state == :quote) if term
+					frag = lstack[0]
+					frag[3] = term
+					op_insert(ptr[-1], frag)
+
+					term = nil
+					last_state = state.pop
+					d -= 1
+				elsif lstate == :nest
 					if state[d] == :fnop
 						lstack.each do |item|
 							ptr << item
@@ -377,6 +413,7 @@ class TMD::ExpressionEvaluator
 					elsif state[d] == :map
 						term = lstack
 					else
+						# @todo does this ever execute?
 						frag = ptr[-1]
 						if frag
 							op_insert(frag, lstack)
@@ -399,6 +436,7 @@ class TMD::ExpressionEvaluator
 					else
 						ptr[-1][2] = lstack
 					end
+					last_state = :fnop
 				end
 			elsif tok == ','
 				# @todo if term is nil and ptr.length == 0, assume an error
@@ -418,8 +456,8 @@ class TMD::ExpressionEvaluator
 						state.pop
 						d -= 1
 					end
-					last_state = :comma
 				end
+				last_state = :comma
 			elsif tok == '?'
 				last_op = ptr.pop
 				ptr << [:op_tern, last_op, nil, nil]
@@ -450,11 +488,7 @@ class TMD::ExpressionEvaluator
 					term = nil
 				else
 					val = term_val(term, last_state == :quote)
-					if ptr.is_a?(ExprArray)
-						ptr.add_term(val)
-					else
-						ptr << val
-					end
+					ptr << val
 					term = nil
 				end
 
@@ -463,6 +497,7 @@ class TMD::ExpressionEvaluator
 		end
 
 		# @todo cleanup
+		term = term_val(term, last_state == :quote) if term
 		if state[d] == :tern
 			op_tern_push(stack)
 		elsif state[d] == :op && term
@@ -471,15 +506,13 @@ class TMD::ExpressionEvaluator
 				op_insert(frag, term)
 			end
 		elsif state[d] == :quote
-			ptr << [:str, term]
+			ptr << term
 		else
 			if term
 				if state[d] == :map
-					ptr.add_term(last_key.pop, term_val(term))
-				elsif state[d] == :arr
-					ptr.add_term(term_val(term))
+					ptr.add_term(last_key.pop, term)
 				else
-					ptr << term_val(term)
+					ptr << term
 				end
 			end
 		end
@@ -586,20 +619,22 @@ class TMD::ExpressionEvaluator
 					if rterm.is_a?(Array)
 						rterm = expr_eval(rterm, vtable, ftable)
 					end
-
 					ret = expr_eval_op(op, lterm, rterm)
 				elsif frag[0] == :fn
 					# @todo see if fname itself has an entry, and call if it has method `func_call` (?)
-					fname = frag[1]
+					fkey = frag[1]
 					args = frag[2]
-					ns, fname = fname.split(':')
+					ns, fname = fkey.split(':')
 					if !fname
 						fname = ns
 						ns = ''
 					end
 					fname = fname.to_sym
 
-					if ftable[ns] && ftable[ns].respond_to?(fname)
+					handler = ftable[fkey]
+					handler = ftable[ns] if !handler
+
+					if handler && handler.respond_to?(fname)
 						cp = []
 						args.each do |arg|
 							el = expr_eval(arg, vtable, ftable)
@@ -786,7 +821,25 @@ class TMD::ExpressionEvaluator
 		puts "7. #{expr7} => #{s7.inspect}"
 		expr_eval(s7, vtable, ftable)
 	end
+
+	def self.restructure(struct)
+		if !struct.is_a?(Array)
+			return struct
+		elsif struct[0] == :op
+			lterm = restructure(struct[2])
+			rterm = restructure(struct[3])
+			return "#{lterm} #{struct[1]} #{rterm}"
+		elsif struct[0] == :var
+			return struct[1]
+		else
+		end
+	end
 end
 
-#TMD::ExpressionEvaluator.test_retrieve_var
-#TMD::ExpressionEvaluator.test_struct
+# s = 'i == 4 && j == 2'
+# puts TMD::ExpressionEvaluator.struct("@var('simplearr', [1,2,3]) {")[0].inspect
+# puts TMD::ExpressionEvaluator.struct('i == 4 && (j == 2) - 1')[0].inspect
+# expr = '5 + 6 * 7 && (j == 2) - 1'
+# puts TMD::ExpressionEvaluator.restructure(TMD::ExpressionEvaluator.struct(expr)[0])
+# m = {'i' => 4, 'j' => 2}
+#puts TMD::ExpressionEvaluator.expr_eval(z,m,nil)
