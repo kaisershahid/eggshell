@@ -586,6 +586,9 @@ class Eggshell::ExpressionEvaluator
 	# @param Map vtable Map for variable references.
 	# @param Map ftable Map for function calls.
 	def self.expr_eval(expr, vtable, ftable)
+		#puts "EXPAND: init #{expr.inspect}"
+		expr = expr[0] if expr.length == 1
+
 		ret = nil
 		if expr.is_a?(ExprArray) || expr.is_a?(ExprHash)
 			ret = expr.clone

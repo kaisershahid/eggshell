@@ -132,7 +132,7 @@
 			<key>name</key>
 			<string>Variable Parameters</string>
 			<key>scope</key>
-			<string>variable</string>
+			<string>variable.parameter</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -165,7 +165,7 @@
 			<key>name</key>
 			<string>Hash</string>
 			<key>scope</key>
-			<string>variable.parameter</string>
+			<string>map.eggshell</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -174,13 +174,13 @@
 		</dict>
 		<dict>
 			<key>name</key>
-			<string>Hash Entry</string>
+			<string>Hash Key</string>
 			<key>scope</key>
-			<string>string.key.map.eggshell</string>
+			<string>constant.character</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#00ffcc</string>
+				<string>#cc99cc</string>
 			</dict>
 		</dict>
 		<dict>

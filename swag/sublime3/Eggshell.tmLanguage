@@ -57,52 +57,21 @@
 			<string>markup.raw.block.eggshell</string>
 		</dict>
 		<dict>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.function.macro.eggshell</string>
-				</dict>
-				<key>2</key>
-				<dict>
-					<key>name</key>
-					<string>variable.parameter.eggshell</string>
-				</dict>
-			</dict>
-			<key>match</key>
-			<string>^\s*@([\w!=]+)\s*(\{[^\s]*|)\s*$</string>
-			<key>name</key>
-			<string>meta.function.macro.eggshell</string>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>^\s*@([\w!=]+)\s*\(</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.function.macro.eggshell</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>\)\s*(\{[^\s]*|)\s*$</string>
-			<key>name</key>
-			<string>meta.function.macro.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#parameters</string>
+					<string>#macro-simple</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#macro</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#macro-end</string>
 				</dict>
 			</array>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>^\s*[^\s]*\}$</string>
-			<key>name</key>
-			<string>support.function.macro.eggshell</string>
 		</dict>
 		<dict>
 			<key>begin</key>
@@ -127,6 +96,21 @@
 			</dict>
 			<key>name</key>
 			<string>markup.raw.block.eggshell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#macro-simple</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#macro</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#macro-end</string>
+				</dict>
+			</array>
 		</dict>
 		<dict>
 			<key>begin</key>
@@ -377,6 +361,57 @@
 				</dict>
 			</array>
 		</dict>
+		<key>macro</key>
+		<dict>
+			<key>begin</key>
+			<string>^\s*@([\w!=]+)\s*\(</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.macro.eggshell</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\)\s*(\{[^\s]*|)\s*$</string>
+			<key>name</key>
+			<string>meta.function.macro.eggshell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#parameters</string>
+				</dict>
+			</array>
+		</dict>
+		<key>macro-end</key>
+		<dict>
+			<key>match</key>
+			<string>^\s*[^\s]*\}$</string>
+			<key>name</key>
+			<string>support.function.macro.eggshell</string>
+		</dict>
+		<key>macro-simple</key>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.macro.eggshell</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>variable.parameter.eggshell</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>^\s*@([\w!=]+)\s*(\{[^\s]*|)\s*$</string>
+			<key>name</key>
+			<string>meta.function.macro.eggshell</string>
+		</dict>
 		<key>map</key>
 		<dict>
 			<key>begin</key>
@@ -402,13 +437,11 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>constant.map.eggshell</string>
+					<string>constant.character.map.eggshell</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=[,}])</string>
-			<key>name</key>
-			<string>constant.map.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>

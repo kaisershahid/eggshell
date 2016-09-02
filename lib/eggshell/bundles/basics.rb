@@ -244,7 +244,7 @@ class Eggshell::Bundles::Basics
 			nofmt = raw
 
 			# we need to group indented lines as part of block, especially if it's otherwise empty
-			if pre || @type == 'bq'
+			if raw || pre || @type == 'bq'
 				raw = true
 				# strip off first indent
 				if indent_level > 0
@@ -280,7 +280,7 @@ class Eggshell::Bundles::Basics
 				@lines = []
 				ret = DONE
 			else
-				line = @proc.fmt_line(line) if !nofmt
+				line = !nofmt ? @proc.fmt_line(line) : @proc.expand_expr(line)
 				@lines << line
 				ret = raw ? COLLECT_RAW : COLLECT
 			end
@@ -443,6 +443,7 @@ class Eggshell::Bundles::Basics
 			end
 
 			if macname == :for || macname == :loop
+				p0 = p0 || {}
 				st[:var] = p0['var']
 				st[:start] = p0['start']
 				st[:stop] = p0['stop']
@@ -450,6 +451,7 @@ class Eggshell::Bundles::Basics
 				st[:iter] = p0['items'] || 'items'
 				st[:item] = p0['item'] || 'item'
 				st[:counter] = p0['counter'] || 'counter'
+				st[:raw]  = p0['raw'] # @todo inherit if not set?
 
 				mbuff = []
 				looper = nil
@@ -483,7 +485,7 @@ class Eggshell::Bundles::Basics
 						end
 
 						@proc.vars[st[:item]] = val.is_a?(Array) && val[0].is_a?(Symbol) ? @proc.expr_eval(val) : val
-						process_lines(lines, buffer, depth + 1)
+						process_lines(lines, buffer, depth + 1, st[:raw])
 						break if st[:break]
 
 						counter += 1
@@ -493,8 +495,9 @@ class Eggshell::Bundles::Basics
 				# clear state
 				@state[depth] = nil
 			elsif macname == :while
+				raw = args[1]
 				while @proc.expr_eval(p0)
-					process_lines(lines, buffer, depth + 1)
+					process_lines(lines, buffer, depth + 1, raw)
 					break if st[:break]
 				end
 			elsif macname == :if || macname == :elsif || macname == :else
@@ -561,13 +564,13 @@ class Eggshell::Bundles::Basics
 			end
 		end
 
-		def process_lines(lines, buffer, depth)
+		def process_lines(lines, buffer, depth, raw = false)
 			return if !lines
 			ln = []
 			lines.each do |line|
 				if line.is_a?(Eggshell::Block)
 					if ln.length > 0
-						buffer << @proc.process(ln, depth)
+						buffer << (raw ? @proc.expand_expr(ln.join("\n")) : @proc.process(ln, depth))
 						ln = []
 					end
 					line.process(buffer, depth)
@@ -580,7 +583,7 @@ class Eggshell::Bundles::Basics
 				end
 			end
 			if ln.length > 0
-				buffer << @proc.process(ln, depth)
+				buffer << (raw ? @proc.expand_expr(ln.join("\n")) : @proc.process(ln, depth))
 			end
 		end
 

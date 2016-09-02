@@ -217,7 +217,6 @@ module Eggshell
 
 			# if exp -- throw exception?
 			buff << plain_str if plain_str != ''
-
 			return buff.join('')
 		end
 
@@ -273,6 +272,7 @@ module Eggshell
 					next
 				end
 
+				orig = line
 				oline = line
 
 				# @todo configurable space tab?
@@ -341,28 +341,6 @@ module Eggshell
 								i -= 1
 							end
 						end
-					end
-					next
-				end
-
-				# html block processing
-				html = line.match(HTML_BLOCK)
-				if html
-					end_html = "</#{html[1]}>$"
-					if !line.match(end_html)
-						in_html = true
-					end
-
-					line = $eggshell.expand_expr(line) if !@vars['html.no_eval']
-					buff << line
-					@vars.delete('html.no_eval')
-
-					next
-				elsif in_html
-					buff << line
-					if line.match(end_html)
-						in_html = false
-						end_html = nil
 					end
 					next
 				end
@@ -439,6 +417,29 @@ module Eggshell
 
 				# @todo try to map indent to a block handler
 				next if line == ''
+
+				# html block processing
+				html = line.match(HTML_BLOCK)
+				if html
+					end_html = "</#{html[1]}>$"
+					if !line.match(end_html)
+						in_html = true
+					end
+
+					line = @vars['html.no_eval'] ? orig : expand_expr(orig)
+					buff << line
+
+					next
+				elsif in_html
+					line = @vars['html.no_eval'] ? orig : expand_expr(orig)
+					buff << line
+					if line.match(end_html)
+						in_html = false
+						end_html = nil
+						@vars.delete('html.no_eval')
+					end
+					next
+				end
 
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
 				block_type = line.match(BLOCK_MATCH)

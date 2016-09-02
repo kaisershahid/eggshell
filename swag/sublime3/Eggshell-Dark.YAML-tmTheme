@@ -54,7 +54,7 @@ settings:
     settings:
       foreground: '#E7352B'
   - name: 'Variable Parameters'
-    scope: variable
+    scope: variable.parameter
     settings:
       foreground: '#E7352B'
 
@@ -68,13 +68,13 @@ settings:
       foreground: '#AE81FF'
 
   - name: 'Hash'
-    scope: variable.parameter
+    scope: map.eggshell
     settings:
       foreground: '#ffff00'
-  - name: 'Hash Entry'
-    scope: string.key.map.eggshell
+  - name: 'Hash Key'
+    scope: constant.character
     settings:
-      foreground: '#00ffcc'
+      foreground: '#cc99cc'
 
   # - name: 'Interpolation'
   #   scope: support.function.interpol
