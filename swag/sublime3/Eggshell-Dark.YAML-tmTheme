@@ -3,14 +3,16 @@ settings:
   - settings:
       scope: eggshell
       caret: '#ff0000'
-      lineHighlight: '#ff0000'
-      background: '#030303'
+      lineHighlight: '#F92672'
+      background: '#112233'
       foreground: '#ffffff'
+      gutter: '#001122'
+      gutterForeground: '#ffeeff'
 
   - name: 'Comment'
     scope: comment
     settings:
-      foreground: '#99cc99'
+      foreground: '#665566'
 
   - name: 'Invalid'
     scope: invalid
@@ -19,10 +21,14 @@ settings:
       foreground: '#ffffff'
 
   - name: 'Code'
-    scope: markup.raw
+    scope: markup.raw.block
     settings:
-      background: '#999999'
-      foreground: '#ffffff'
+      foreground: '#eeeeee'
+  - name: 'Code (Inline)'
+    scope: markup.raw.code
+    settings:
+      foreground: '#cccccc'
+      background: '#332033'
 
   - name: 'Operator'
     scope: support.operator
@@ -30,13 +36,13 @@ settings:
       foreground: '#ffcc00'
 
   - name: 'String'
-    scope: string
+    scope: string, text.html
     settings:
-      foreground: '#ffccaa'
+      foreground: '#eeeeee'
   - name: 'String Quoted'
-    scope: string.quoted
+    scope: string.quoted, meta.function.interpol
     settings:
-      foreground: '#ffffff'
+      foreground: '#ffcc99'
 
   - name: 'Constants'
     scope: constant
@@ -46,21 +52,20 @@ settings:
   - name: 'Variables'
     scope: variable
     settings:
-      foreground: '#ffcc00'
+      foreground: '#E7352B'
   - name: 'Variable Parameters'
     scope: variable
     settings:
-      background: '#333333'
-      foreground: '#ffcc00'
+      foreground: '#E7352B'
 
   - name: 'Macro'
-    scope: support
+    scope: meta.function, meta.class, support.class
     settings:
-      foreground: '#cc0000'
-  - name: 'Macro Name'
-    scope: support.function
+      foreground: '#ffccff'
+  - name: 'Macro/Function/Block Name'
+    scope: entity.name, keyword
     settings:
-      foreground: '#ff0000'
+      foreground: '#AE81FF'
 
   - name: 'Hash'
     scope: variable.parameter
@@ -70,27 +75,24 @@ settings:
     scope: string.key.map.eggshell
     settings:
       foreground: '#00ffcc'
-  - name: 'Block Name'
-    scope: entity.name.function
-    settings:
-      foreground: '#00ccdd'
 
-  - name: 'Interpolation'
-    scope: support.function.interpol
-    settings:
-      background: '#333333'
+  # - name: 'Interpolation'
+  #   scope: support.function.interpol
+  #   settings:
+  #     background: '#ffccff'
+  #     color: '#334433'
 
-  - name: 'HTML Tag'
+  - name: 'HTML/Block Tag'
     scope: entity.name.tag, meta.tag
     settings:
-      foreground: '#ccffaa'
-      background: '#333333'
+      foreground: '#AE81FF'
+      #background: '#333333'
   - name: 'HTML Attribute'
     scope: entity.other.attribute-name
     settings:
-      foreground: '#ccffaa'
+      foreground: '#ffccff'
   - name: 'HTML Attribute'
-    scope: markup.other
+    scope: entity.other
     settings:
       foreground: '#ccffaa'
       background: '#333333'
@@ -98,22 +100,24 @@ settings:
   - name: 'Markup Bold'
     scope: markup.bold
     settings:
-      foreground: '#000000'
-      background: '#ffcc00'
+      foreground: '#bbaabb'
+      background: '#33333a'
+      fontStyle: bold
   - name: 'Markup Italic'
     scope: markup.italic
     settings:
-      foreground: '#000000'
-      background: '#00ccff'
+      foreground: '#ffeeff'
+      background: '#33333a'
+      fontStyle: italic
   - name: 'Markup Other'
     scope: markup.other
     settings:
-      foreground: '#000000'
-      background: '#ffffff'
+      foreground: '#ffddff'
+      #background: '#33333a'
   - name: 'Markup Other (HTML block)'
     scope: markup.other.block
     settings:
-      foreground: '#aaaaa3'
-      background: '#33333a'
+      foreground: '#bbaabb'
+      #background: '#33333a'
 
 uuid: 2ccdf3dc-82b9-49bd-b811-273d1cf123cf

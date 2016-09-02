@@ -10,13 +10,17 @@
 			<key>settings</key>
 			<dict>
 				<key>background</key>
-				<string>#030303</string>
+				<string>#112233</string>
 				<key>caret</key>
 				<string>#ff0000</string>
 				<key>foreground</key>
 				<string>#ffffff</string>
+				<key>gutter</key>
+				<string>#001122</string>
+				<key>gutterForeground</key>
+				<string>#ffeeff</string>
 				<key>lineHighlight</key>
-				<string>#ff0000</string>
+				<string>#F92672</string>
 				<key>scope</key>
 				<string>eggshell</string>
 			</dict>
@@ -29,7 +33,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#99cc99</string>
+				<string>#665566</string>
 			</dict>
 		</dict>
 		<dict>
@@ -49,13 +53,24 @@
 			<key>name</key>
 			<string>Code</string>
 			<key>scope</key>
-			<string>markup.raw</string>
+			<string>markup.raw.block</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#eeeeee</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Code (Inline)</string>
+			<key>scope</key>
+			<string>markup.raw.code</string>
 			<key>settings</key>
 			<dict>
 				<key>background</key>
-				<string>#999999</string>
+				<string>#332033</string>
 				<key>foreground</key>
-				<string>#ffffff</string>
+				<string>#cccccc</string>
 			</dict>
 		</dict>
 		<dict>
@@ -73,22 +88,22 @@
 			<key>name</key>
 			<string>String</string>
 			<key>scope</key>
-			<string>string</string>
+			<string>string, text.html</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#ffccaa</string>
+				<string>#eeeeee</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>String Quoted</string>
 			<key>scope</key>
-			<string>string.quoted</string>
+			<string>string.quoted, meta.function.interpol</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#ffffff</string>
+				<string>#ffcc99</string>
 			</dict>
 		</dict>
 		<dict>
@@ -110,7 +125,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#ffcc00</string>
+				<string>#E7352B</string>
 			</dict>
 		</dict>
 		<dict>
@@ -120,32 +135,30 @@
 			<string>variable</string>
 			<key>settings</key>
 			<dict>
-				<key>background</key>
-				<string>#333333</string>
 				<key>foreground</key>
-				<string>#ffcc00</string>
+				<string>#E7352B</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>Macro</string>
 			<key>scope</key>
-			<string>support</string>
+			<string>meta.function, meta.class, support.class</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#cc0000</string>
+				<string>#ffccff</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
-			<string>Macro Name</string>
+			<string>Macro/Function/Block Name</string>
 			<key>scope</key>
-			<string>support.function</string>
+			<string>entity.name, keyword</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#ff0000</string>
+				<string>#AE81FF</string>
 			</dict>
 		</dict>
 		<dict>
@@ -172,37 +185,13 @@
 		</dict>
 		<dict>
 			<key>name</key>
-			<string>Block Name</string>
-			<key>scope</key>
-			<string>entity.name.function</string>
-			<key>settings</key>
-			<dict>
-				<key>foreground</key>
-				<string>#00ccdd</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>name</key>
-			<string>Interpolation</string>
-			<key>scope</key>
-			<string>support.function.interpol</string>
-			<key>settings</key>
-			<dict>
-				<key>background</key>
-				<string>#333333</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>name</key>
-			<string>HTML Tag</string>
+			<string>HTML/Block Tag</string>
 			<key>scope</key>
 			<string>entity.name.tag, meta.tag</string>
 			<key>settings</key>
 			<dict>
-				<key>background</key>
-				<string>#333333</string>
 				<key>foreground</key>
-				<string>#ccffaa</string>
+				<string>#AE81FF</string>
 			</dict>
 		</dict>
 		<dict>
@@ -213,14 +202,14 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#ccffaa</string>
+				<string>#ffccff</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>HTML Attribute</string>
 			<key>scope</key>
-			<string>markup.other</string>
+			<string>entity.other</string>
 			<key>settings</key>
 			<dict>
 				<key>background</key>
@@ -237,9 +226,11 @@
 			<key>settings</key>
 			<dict>
 				<key>background</key>
-				<string>#ffcc00</string>
+				<string>#33333a</string>
+				<key>fontStyle</key>
+				<string>bold</string>
 				<key>foreground</key>
-				<string>#000000</string>
+				<string>#bbaabb</string>
 			</dict>
 		</dict>
 		<dict>
@@ -250,9 +241,11 @@
 			<key>settings</key>
 			<dict>
 				<key>background</key>
-				<string>#00ccff</string>
+				<string>#33333a</string>
+				<key>fontStyle</key>
+				<string>italic</string>
 				<key>foreground</key>
-				<string>#000000</string>
+				<string>#ffeeff</string>
 			</dict>
 		</dict>
 		<dict>
@@ -262,10 +255,8 @@
 			<string>markup.other</string>
 			<key>settings</key>
 			<dict>
-				<key>background</key>
-				<string>#ffffff</string>
 				<key>foreground</key>
-				<string>#000000</string>
+				<string>#ffddff</string>
 			</dict>
 		</dict>
 		<dict>
@@ -275,10 +266,8 @@
 			<string>markup.other.block</string>
 			<key>settings</key>
 			<dict>
-				<key>background</key>
-				<string>#33333a</string>
 				<key>foreground</key>
-				<string>#aaaaa3</string>
+				<string>#bbaabb</string>
 			</dict>
 		</dict>
 	</array>

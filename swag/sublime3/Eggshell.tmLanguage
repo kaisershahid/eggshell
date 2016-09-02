@@ -31,7 +31,7 @@
 			<key>end</key>
 			<string>^$</string>
 			<key>name</key>
-			<string>comment.eggshell</string>
+			<string>markup.raw.block.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -54,7 +54,7 @@
 			<key>end</key>
 			<string>^$</string>
 			<key>name</key>
-			<string>comment.eggshell</string>
+			<string>markup.raw.block.eggshell</string>
 		</dict>
 		<dict>
 			<key>captures</key>
@@ -62,18 +62,18 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>support.function.macro.eggshell</string>
+					<string>entity.name.function.macro.eggshell</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>support.function.eggshell</string>
+					<string>variable.parameter.eggshell</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>^\s*@([\w!=]+)\s*(\{[^\s]*|)\s*$</string>
 			<key>name</key>
-			<string>support.macro.eggshell</string>
+			<string>meta.function.macro.eggshell</string>
 		</dict>
 		<dict>
 			<key>begin</key>
@@ -83,13 +83,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>support.function.macro.eggshell</string>
+					<string>entity.name.function.macro.eggshell</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>\)\s*(\{[^\s]*|)\s*$</string>
 			<key>name</key>
-			<string>support.macro.eggshell</string>
+			<string>meta.function.macro.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -126,7 +126,7 @@
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>markup.other.block.eggshell</string>
+			<string>markup.raw.block.eggshell</string>
 		</dict>
 		<dict>
 			<key>begin</key>
@@ -253,9 +253,9 @@
 		<key>attribute-simple</key>
 		<dict>
 			<key>match</key>
-			<string>\[a-zA-Z\]\[\\w-:\]+\b</string>
+			<string>(?&lt;=\s)[_a-zA-Z][\w:-]*</string>
 			<key>name</key>
-			<string>entity.other.attribute-name.simple.eggshell</string>
+			<string>entity.other.attribute-name.eggshell</string>
 		</dict>
 		<key>code-brace</key>
 		<dict>
@@ -264,7 +264,7 @@
 			<key>end</key>
 			<string>\}\}</string>
 			<key>name</key>
-			<string>markup.raw.eggshell</string>
+			<string>markup.raw.code.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -280,7 +280,7 @@
 			<key>end</key>
 			<string>`</string>
 			<key>name</key>
-			<string>markup.raw.eggshell</string>
+			<string>markup.raw.code.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -368,7 +368,7 @@
 			<key>end</key>
 			<string>\}</string>
 			<key>name</key>
-			<string>support.function.interpol.eggshell</string>
+			<string>meta.function.interpol.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -492,7 +492,7 @@
 		<key>variable</key>
 		<dict>
 			<key>match</key>
-			<string>[a-zA-Z][a-zA-Z0-9._\[\]]+</string>
+			<string>[a-zA-Z]([a-zA-Z0-9._]*)</string>
 			<key>name</key>
 			<string>variable.source.eggshell</string>
 		</dict>
