@@ -1,4 +1,3 @@
-module Eggshell; end
 # Parses and evaluates statements (expressions).
 #
 # pre.
@@ -576,6 +575,8 @@ class Eggshell::ExpressionEvaluator
 					i += 1
 				end
 			end
+		else
+			return [struct, false]
 		end
 
 		return [struct, dyn]
@@ -650,6 +651,8 @@ class Eggshell::ExpressionEvaluator
 					ret = retrieve_var(frag[1], vtable)
 				end
 			end
+		else
+			return expr
 		end
 		return ret
 	end
@@ -835,11 +838,3 @@ class Eggshell::ExpressionEvaluator
 		end
 	end
 end
-
-# s = 'i == 4 && j == 2'
-# puts Eggshell::ExpressionEvaluator.struct("@var('simplearr', [1,2,3]) {")[0].inspect
-# puts Eggshell::ExpressionEvaluator.struct('i == 4 && (j == 2) - 1')[0].inspect
-# expr = '5 + 6 * 7 && (j == 2) - 1'
-# puts Eggshell::ExpressionEvaluator.restructure(Eggshell::ExpressionEvaluator.struct(expr)[0])
-# m = {'i' => 4, 'j' => 2}
-#puts Eggshell::ExpressionEvaluator.expr_eval(z,m,nil)

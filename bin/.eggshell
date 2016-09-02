@@ -1,0 +1,8 @@
+!# example eggshell configuration. place in your home directory
+!# use @gems to load one or more gems containing the bundles you want to load
+@gems('eggshell', 'kegshell')
+!# if the bundle(s) you want are in local files, specify the files here
+@files('/path/to/local/lib.rb', '/path/to/local/lib2.rb')
+!# assuming everything is loaded successfully, activate the bundles you want
+@bundles('bundle1', 'bundle2')
+!# todo how to initialize vars?

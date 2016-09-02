@@ -9,7 +9,9 @@ class Eggshell::Bundles::Basics
 		bbasics.set_processor(proc)
 		mbasics.set_processor(proc)
 		mcntrls.set_processor(proc)
+
 		proc.register_functions('', StdFunctions::FUNC_NAMES)
+		proc.register_functions('sprintf', Kernel)
 	end
 
 	# `table` block parameters:
@@ -61,7 +63,7 @@ class Eggshell::Bundles::Basics
 			if line.index(name) == 0
 				line = line[name.length+1..-1].lstrip
 			end
-			@lines = [@proc.fmt_line(line)]
+			@lines = [@type == 'raw' ? line : @proc.fmt_line(line)]
 
 			return COLLECT
 		end
@@ -70,183 +72,219 @@ class Eggshell::Bundles::Basics
 			line = '' if !line
 			ret = COLLECT
 			if @type == :list
-				if line && (line[0] == '#' || line[0] == '-')
-					@lines << [line, indent_level]
-				else
-					# if non-empty line, reprocess this line but process buffer
-					ret = (line && line != '') ? RETRY : DONE
-					order_stack = []
-					otype_stack = []
-					last = nil
-					@lines.each do |pair|
-						line = pair[0]
-						indent = pair[1]
-						type = line[0] == '-' ? 'ul' : 'ol'
-						if order_stack.length == 0
-							order_stack << "<#{type}>"
-							otype_stack << type
-						# @todo make sure that previous item was a list
-						# remove closing li to enclose sublist
-						elsif indent > (otype_stack.length-1) && order_stack.length > 0
-							last = order_stack[-1]
-							last = last[0...last.length-5]
-							order_stack[-1] = last
-
-							order_stack << "#{"\t"*indent}<#{type}>"
-							otype_stack << type
-						elsif indent < (otype_stack.length-1)
-							count = otype_stack.length - 1 - indent
-							while count > 0
-								ltype = otype_stack.pop	
-								order_stack << "#{"\t"*count}</#{ltype}>\n#{"\t"*(count-1)}</li>"
-								count -= 1
-							end
-						end
-						order_stack << "#{"\t"*indent}<li>#{@proc.fmt_line(line[1...line.length].strip)}</li>"
-					end
-
-					# close nested lists
-					d = otype_stack.length
-					c = 1
-					otype_stack.each do |type|
-						ident = d - c
-						order_stack << "#{"\t" * ident}</#{type}>#{c == d ? '' : "</li>"}"
-						c += 1
-					end
-					buff << order_stack.join("\n")
-				end
+				ret = do_list(line, buff, indents, indent_level)
 			elsif @type == :table
-				if line[0] == '|' || line[0] == '/'
-					@lines << line
-				else
-					ret = (line[0] != '\\' && line != '') ? RETRY : DONE
-					params = @proc.vars[:block_params]
-					map = params.is_a?(Array) ? (params[0] || {}) : {}
-					tbl_class = map['class'] || ''
-					tbl_style = map['style'] || ''
-					tbl_attrib = ''
-					if map['attribs'].is_a?(String)
-						tbl_attrib = map['attribs']
-					elsif map['attribs'].is_a?(Hash)
-						map['attribs'].each do |key,val|
-							tbl_attrib = "#{tbl_attrib} #{key}='#{val}'"
-						end
-					end
-					row_classes = map['row.classes']
-					row_classes = ['odd', 'even'] if !row_classes.is_a?(Array)
-
-					@proc.vars['t.row'] = 0
-					buff << "<table class='#{tbl_class}' style='#{tbl_style}'#{tbl_attrib}>"
-					cols = nil
-					rows = 0
-					rc = 0
-					@lines.each do |line|
-						cols = []
-						ccount = 0
-						if line[0] == '/' && rows == 0
-							cols = line[1..line.length].split('|')
-							buff << "<thead><tr class='#{map['head.class']}'>"
-							cols.each do |col|
-								buff << "\t#{fmt_cell(col, true, ccount)}"
-								ccount += 1
-							end
-							buff << '</tr></thead>'
-							buff << '<tbody>'
-						elsif line[0] == '/'
-							# implies footer
-							cols = line[1..line.length].split('|')
-							buff << "<tfoot><tr class='#{map['foot.class']}'>"
-							cols.each do |col|
-								buff << "\t#{fmt_cell(col, true, ccount)}"
-								ccount += 1
-							end
-							buff << '</tr></tfoot>'
-						elsif line[0] == '|' || line[0..1] == '|>'
-							idx = 1
-							sep = '|'
-							if line[1] == '>'
-								idx = 2
-								sep = '|>'
-							end
-							cols = line[idx..line.length].split(sep)
-							@proc.vars['t.row'] = rc
-							rclass = row_classes[rc % row_classes.length]
-							buff << "<tr class='#{rc} #{rclass}'>"
-							cols.each do |col|
-								buff << "\t#{fmt_cell(col, false, ccount)}"
-								ccount += 1
-							end
-							buff << '</tr>'
-							rc += 1
-						else
-							cols = line[1..line.length].split('|') if line[0] == '\\'
-						end
-						rows += 1
-					end
-
-					buff << '</tbody>'
-					if cols.length > 0
-						# @todo process footer
-					end
-					buff << "</table>"
-					@proc.vars['table.class'] = ''
-					@proc.vars['table.style'] = ''
-					@proc.vars['table.attribs'] = ''
-				end
+				ret = do_table(line, buff, indents, indent_level)
 			elsif @type == :dt
-				if line == '' || line[0] != '>'
-					ret = DONE
-					ret = RETRY if line[0] != '>'
-
-					buff << "<dl class='#{@proc.vars['dd.class']}'>"
-					@lines.each do |line|
-						key = line[0]
-						val = line[1]
-						buff << "<dt class='#{@proc.vars['dt.class']}'>#{key}</dt><dd class='#{@proc.vars['dd.class']}'>#{val}</dd>"
-					end
-					buff << "</dl>"
-				else
-					@lines << line[1..-1].split('::', 2)
-					ret = COLLECT
-				end
+				ret = do_dt(line, buff, indents, indent_level)
 			else
-				blank = false
-				if @type == 'pre'
-					#$stderr.write "(#{indent_level}) #{indents}|#{line}\n"
-					if indent_level > 0
-						idx = indents.length / indent_level
-						line = indents[idx..-1] + line
-						#$stderr.write " #{indent_level}) #{indents}|#{line}\n"
+				ret = do_default(line, buff, indents, indent_level)
+			end
+			return ret
+		end
+
+		def do_list(line, buff, indents = '', indent_level = 0)
+			ret = COLLECT
+			if line && (line[0] == '#' || line[0] == '-')
+				@lines << [line, indent_level]
+			else
+				# if non-empty line, reprocess this line but process buffer
+				ret = (line && line != '') ? RETRY : DONE
+				order_stack = []
+				otype_stack = []
+				last = nil
+				@lines.each do |pair|
+					line = pair[0]
+					indent = pair[1]
+					type = line[0] == '-' ? 'ul' : 'ol'
+					if order_stack.length == 0
+						order_stack << "<#{type}>"
+						otype_stack << type
+					# @todo make sure that previous item was a list
+					# remove closing li to enclose sublist
+					elsif indent > (otype_stack.length-1) && order_stack.length > 0
+						last = order_stack[-1]
+						last = last[0...last.length-5]
+						order_stack[-1] = last
+
+						order_stack << "#{"\t"*indent}<#{type}>"
+						otype_stack << type
+					elsif indent < (otype_stack.length-1)
+						count = otype_stack.length - 1 - indent
+						while count > 0
+							ltype = otype_stack.pop	
+							order_stack << "#{"\t"*count}</#{ltype}>\n#{"\t"*(count-1)}</li>"
+							count -= 1
+						end
+					end
+					order_stack << "#{"\t"*indent}<li>#{@proc.fmt_line(line[1...line.length].strip)}</li>"
+				end
+
+				# close nested lists
+				d = otype_stack.length
+				c = 1
+				otype_stack.each do |type|
+					ident = d - c
+					order_stack << "#{"\t" * ident}</#{type}>#{c == d ? '' : "</li>"}"
+					c += 1
+				end
+				buff << order_stack.join("\n")
+			end
+			ret
+		end
+
+		def do_table(line, buff, indents = '', indent_level = 0)
+			ret = COLLECT
+			if line[0] == '|' || line[0] == '/'
+				@lines << line
+			else
+				ret = (line[0] != '\\' && line != '') ? RETRY : DONE
+				params = @proc.vars[:block_params]
+				map = params.is_a?(Array) ? (params[0] || {}) : {}
+				tbl_class = map['class'] || ''
+				tbl_style = map['style'] || ''
+				tbl_attrib = ''
+				if map['attribs'].is_a?(String)
+					tbl_attrib = map['attribs']
+				elsif map['attribs'].is_a?(Hash)
+					map['attribs'].each do |key,val|
+						tbl_attrib = "#{tbl_attrib} #{key}='#{val}'"
+					end
+				end
+				row_classes = map['row.classes']
+				row_classes = ['odd', 'even'] if !row_classes.is_a?(Array)
+
+				@proc.vars['t.row'] = 0
+				buff << "<table class='#{tbl_class}' style='#{tbl_style}'#{tbl_attrib}>"
+				cols = nil
+				rows = 0
+				rc = 0
+				@lines.each do |line|
+					cols = []
+					ccount = 0
+					if line[0] == '/' && rows == 0
+						cols = line[1..line.length].split('|')
+						buff << "<thead><tr class='#{map['head.class']}'>"
+						cols.each do |col|
+							buff << "\t#{fmt_cell(col, true, ccount)}"
+							ccount += 1
+						end
+						buff << '</tr></thead>'
+						buff << '<tbody>'
+					elsif line[0] == '/'
+						# implies footer
+						cols = line[1..line.length].split('|')
+						buff << "<tfoot><tr class='#{map['foot.class']}'>"
+						cols.each do |col|
+							buff << "\t#{fmt_cell(col, true, ccount)}"
+							ccount += 1
+						end
+						buff << '</tr></tfoot>'
+					elsif line[0] == '|' || line[0..1] == '|>'
+						idx = 1
+						sep = '|'
+						if line[1] == '>'
+							idx = 2
+							sep = '|>'
+						end
+						cols = line[idx..line.length].split(sep)
+						@proc.vars['t.row'] = rc
+						rclass = row_classes[rc % row_classes.length]
+						buff << "<tr class='#{rc} #{rclass}'>"
+						cols.each do |col|
+							buff << "\t#{fmt_cell(col, false, ccount)}"
+							ccount += 1
+						end
+						buff << '</tr>'
+						rc += 1
 					else
-						blank = line == ''
+						cols = line[1..line.length].split('|') if line[0] == '\\'
+					end
+					rows += 1
+				end
+
+				buff << '</tbody>'
+				if cols.length > 0
+					# @todo process footer
+				end
+				buff << "</table>"
+				@proc.vars['table.class'] = ''
+				@proc.vars['table.style'] = ''
+				@proc.vars['table.attribs'] = ''
+			end
+			ret
+		end
+
+		def do_dt(line, buff, indents = '', indent_level = 0)
+			ret = COLLECT
+			if line == '' || line[0] != '>'
+				ret = DONE
+				ret = RETRY if line[0] != '>'
+
+				buff << "<dl class='#{@proc.vars['dd.class']}'>"
+				@lines.each do |line|
+					key = line[0]
+					val = line[1]
+					buff << "<dt class='#{@proc.vars['dt.class']}'>#{key}</dt><dd class='#{@proc.vars['dd.class']}'>#{val}</dd>"
+				end
+				buff << "</dl>"
+			else
+				@lines << line[1..-1].split('::', 2)
+				ret = COLLECT
+			end
+			ret
+		end
+
+		def do_default(line, buff, indents = '', indent_level = 0)
+			ret = COLLECT
+			blank = false
+
+			raw = @type == 'raw'
+			pre = @type == 'pre'
+			nofmt = raw
+
+			# we need to group indented lines as part of block, especially if it's otherwise empty
+			if pre || @type == 'bq'
+				raw = true
+				# strip off first indent
+				if indent_level > 0
+					idx = indents.length / indent_level
+					line = indents[idx..-1] + line
+					if pre
+						line += "\n" 
+					elsif line == ''
+						line = ' '
 					end
 				else
 					blank = line == ''
 				end
-
-				if blank
-					@lines.delete('')
-					start_tag = ''
-					end_tag = ''
-					if @type != 'raw'
-						@type = 'blockquote' if @type == 'bq'
-						# @todo get attributes from block param
-						start_tag = "<#{@type}>"
-						end_tag = "</#{@type}>"
-						join = @type == 'pre' ? "\n" : '<br />'
-							
-						buff << "#{start_tag}#{@lines.join(join)}#{end_tag}"
-					else
-						buff << @lines.join("\n")
-					end
-					@lines = []
-					ret = DONE
-				else
-					@lines << @proc.fmt_line(line)
-					ret = COLLECT
-				end
+			else
+				blank = line == ''
 			end
-			return ret
+
+			if blank
+				@lines.delete('')
+				start_tag = ''
+				end_tag = ''
+				if @type != 'raw'
+					@type = 'blockquote' if @type == 'bq'
+					# @todo get attributes from block param
+					start_tag = "<#{@type}>"
+					end_tag = "</#{@type}>"
+					join = @type == 'pre' ? "" : "<br />\n"
+
+					buff << "#{start_tag}#{@lines.join(join)}#{end_tag}"
+				else
+					buff << @lines.join("\n")
+				end
+				@lines = []
+				ret = DONE
+			else
+				line = @proc.fmt_line(line) if !nofmt
+				@lines << line
+				ret = raw ? COLLECT_RAW : COLLECT
+			end
+			ret
 		end
 
 		def fmt_cell(val, header = false, colnum = 0)
@@ -257,9 +295,11 @@ class Eggshell::Bundles::Basics
 			if val[0] == '\\'
 				val = val[1..val.length]
 			elsif val[0] == CELL_ATTR_START
-				rt = val.index(CELL_ATTR_END, 1)
-				attribs = val[1...rt]
-				val = val[rt+CELL_ATTR_END.length..val.length]
+				rt = val.index(CELL_ATTR_END)
+				if rt
+					attribs = val[1...rt]
+					val = val[rt+CELL_ATTR_END.length..val.length]
+				end
 			end
 
 			# inject column position via class
@@ -297,7 +337,7 @@ class Eggshell::Bundles::Basics
 
 		def set_processor(eggshell)
 			@proc = eggshell
-			@proc.register_macro(self, *%w(! capture var include process parse_test))
+			@proc.register_macro(self, *%w(! = capture var include process parse_test))
 		end
 
 		def process(buffer, macname, args, lines, depth)
@@ -314,7 +354,7 @@ class Eggshell::Bundles::Basics
 				return if !lines
 				var = args[0]
 				@proc.vars[var] = @proc.process(lines, depth)
-			elsif macname == 'var'
+			elsif macname == 'var' || macname == '='
 				# @todo support multiple vars via lines
 				# @todo expand value if expression
 				if args.length >= 2
@@ -479,8 +519,6 @@ class Eggshell::Bundles::Basics
 					if !st[:cond_eval]
 						cond_struct = Eggshell::ExpressionEvaluator.struct(cond)
 						st[:cond_eval] = @proc.expr_eval(cond_struct)[0]
-						#puts "#{cond_struct[0]} => #{st[:cond_eval]}"
-						#puts "\t#{@proc.vars['i']}, #{@proc.vars['j']}"
 					end
 				else
 					st[:cond_eval] = true

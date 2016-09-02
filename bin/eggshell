@@ -1,5 +1,5 @@
 #!/usr/bin/ruby
-require_relative '../lib/tmd.rb'
+require_relative '../lib/eggshell.rb'
 
 f = ARGV[0]
 if !f || !File.exists?(f)
@@ -7,12 +7,22 @@ if !f || !File.exists?(f)
 	exit
 end
 
-# @todo parse out environment variables
+$eggshell = Eggshell::Processor.new
+$eggshell.vars[:include_paths] << File.realdirpath(File.dirname(f))
+Eggshell::Bundles::Registry.attach_bundle('basics', $eggshell)
 
-$tmd = TMD::Processor.new
-$tmd._info("PROCESSING #{f}")
-$tmd.vars[:include_paths] << File.realdirpath(File.dirname(f))
-TMD::Bundles::Registry.attach_bundle('basics', $tmd)
+home = Dir.home
+if File.exists?("#{home}/.eggshell")
+	require_relative '../lib/eggshell/bundles/loader.rb'
+	$loader = Eggshell::Processor.new
+	$loader.vars[:target] = $eggshell
+	Eggshell::Bundles::Registry.attach_bundle('loader', $loader)
+	$loader.process(IO.readlines("#{home}/.eggshell"))
+	$eggshell._info("loaded ~/.eggshell")
+end
 
-output = $tmd.process(IO.readlines(f))
+# @todo parse any additional opts via command line or local project?
+
+$eggshell._info("PROCESSING #{f}")
+output = $eggshell.process(IO.readlines(f))
 puts output

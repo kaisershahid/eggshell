@@ -47,6 +47,8 @@ module Eggshell::Bundles
 			bundle = @@reg[id]
 			if bundle
 				bundle.new_instance(proc)
+			else
+				$stderr.write "no bundle '#{id}'\n"
 			end
 		end
 

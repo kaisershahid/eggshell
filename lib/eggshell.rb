@@ -1,4 +1,4 @@
-# TechnicalMarkDown
+# Eggshell.
 module Eggshell
 	# For complex nested content, use the block to execute content correctly.
 	# Quick examples: nested loops, conditional statements.
@@ -237,9 +237,6 @@ module Eggshell
 			in_block = false
 			in_dl = false
 
-			indent_level = 0
-			indents = ''
-
 			macro = nil
 			macro_blocks = []
 			macro_handler = nil
@@ -249,11 +246,14 @@ module Eggshell
 			ext_line = nil
 
 			block_handler = nil
+			block_handler_raw = false
 
 			i = 0
 
 			while (i <= lines.length)
 				line = nil
+				indent_level = 0
+				indents = ''
 
 				# special condition to get a dangling line
 				if i == lines.length
@@ -275,6 +275,7 @@ module Eggshell
 
 				oline = line
 
+				# @todo configurable space tab?
 				if line[0] == TAB || line[0..3] == TAB_SPACE
 					tab = line[0] == TAB ? TAB : TAB_SPACE
 					indent_level += 1
@@ -327,6 +328,42 @@ module Eggshell
 				oline = line
 
 				if line[0..1] == '!#'
+					next
+				end
+
+				if block_handler_raw
+					stat = block_handler.collect(line, buff, indents, indent_level)
+					if stat != Eggshell::BlockHandler::COLLECT_RAW
+						block_handler_raw = false
+						if stat != Eggshell::BlockHandler::COLLECT
+							block_handler = nil
+							if stat == Eggshell::BlockHandler::RETRY
+								i -= 1
+							end
+						end
+					end
+					next
+				end
+
+				# html block processing
+				html = line.match(HTML_BLOCK)
+				if html
+					end_html = "</#{html[1]}>$"
+					if !line.match(end_html)
+						in_html = true
+					end
+
+					line = $eggshell.expand_expr(line) if !@vars['html.no_eval']
+					buff << line
+					@vars.delete('html.no_eval')
+
+					next
+				elsif in_html
+					buff << line
+					if line.match(end_html)
+						in_html = false
+						end_html = nil
+					end
 					next
 				end
 
@@ -386,35 +423,17 @@ module Eggshell
 
 				if block_handler
 					stat = block_handler.collect(line, buff, indents, indent_level)
-					if stat != Eggshell::BlockHandler::COLLECT
+
+					if stat == Eggshell::BlockHandler::COLLECT_RAW
+						block_handler_raw = true
+					elsif stat != Eggshell::BlockHandler::COLLECT
 						block_handler = nil
+						block_handler_raw = false
 						if stat == Eggshell::BlockHandler::RETRY
 							i -= 1
 						end
 					end
 					line = nil
-					next
-				end
-
-				# html block processing
-				html = line.match(HTML_BLOCK)
-				if html
-					end_html = "</#{html[1]}>$"
-					if !line.match(end_html)
-						in_html = true
-					end
-
-					line = $eggshell.expand_expr(line) if !@vars['html.no_eval']
-					buff << line
-					@vars.delete('html.no_eval')
-
-					next
-				elsif in_html
-					buff << line
-					if line.match(end_html)
-						in_html = false
-						end_html = nil
-					end
 					next
 				end
 
@@ -433,15 +452,14 @@ module Eggshell
 				block_handler = @blocks[block_type]
 				block_handler = @noop_block if !block_handler 
 				stat = block_handler.start(block_type, line, buff, indents, indent_level)
+				# block handler won't continue to next line; clear and possibly retry
 				if stat != Eggshell::BlockHandler::COLLECT
 					block_handler = nil
 					if stat == Eggshell::BlockHandler::RETRY
 						i -= 1
-						next
 					end
 				else
 					line = nil
-					next
 				end
 			end
 
