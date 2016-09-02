@@ -1,0 +1,187 @@
+# [PackageDev] target_format: plist, ext: tmLanguage
+---
+name: Eggshell
+scopeName: eggshell
+fileTypes: ["eggs", "eggshell"]
+uuid: 7a823ca8-8c7f-472f-9d55-760b95a87532
+
+patterns:
+  - #comment
+    name: comment.line.source.eggshell
+    match: ^\s*!#.*
+  - # pre/bq/raw blocks get some special treatment
+    name: comment.eggshell
+    begin: '(pre|bq)\.'
+    captures:
+      "1": {name: entity.name.tag.eggshell}
+    end: ^$
+    patterns:
+      - include: '#inlines'
+  -
+    name: comment.eggshell
+    begin: '(raw)\.'
+    captures:
+      "1": {name: entity.name.tag.eggshell}
+    end: ^$
+
+  - #macro, macro {
+    name: support.macro.eggshell
+    match: ^\s*@([\w!=]+)\s*(\{[^\s]*|)\s*$
+    captures:
+      "1": {name: support.function.macro.eggshell}
+      "2": {name: support.function.eggshell}
+  - #macro
+    name: support.macro.eggshell
+    begin: ^\s*@([\w!=]+)\s*\(
+    beginCaptures:
+      "1": {name: support.function.macro.eggshell}
+    end: \)\s*(\{[^\s]*|)\s*$
+    patterns:
+      - include: '#parameters'
+  - #end macro
+    name: support.function.macro.eggshell
+    match: ^\s*[^\s]*\}$
+
+  - # html blocks
+    name: markup.other.block.eggshell
+    begin: "^<((script|style|div|blockquote|p|pre)[^>]*)>"
+    beginCaptures:
+      "1": {name: "entity.name.tag.eggshell"}
+    end: "</(script|style|div|blockquote|p|pre)>$"
+    endCaptures:
+      "1": {name: "entity.name.tag.eggshell"}
+
+  - #block with 'tag'
+    name: string.line.block.eggshell
+    begin: ^\s*([a-z0-9_-]+\.|[|\\/#<>*+-]+)
+    end: $
+    captures:
+      "1": {name: entity.name.tag.eggshell}
+      "2": {name: string.line.eggshell}
+    patterns:
+      - include: '#html'
+      - include: '#html-end'
+      - include: '#interpolation'
+      - include: '#code-tick'
+      - include: '#code-brace'
+      - include: '#inlines'
+  - # basic line
+    name: string.line.eggshell
+    begin: ^
+    end: $
+    patterns:
+      - include: '#html'
+      - include: '#html-end'
+      - include: '#interpolation'
+      - include: '#code-tick'
+      - include: '#code-brace'
+      - include: '#inlines'
+repository:
+  operators:
+    name: support.operator.eggshell
+    match: "[+/*<>=%,-]+"
+  quote-single:
+    name: string.quoted.single.eggshell
+    begin: "'"
+    end: (?<!\\)\'
+  quote-double:
+    name: string.quoted.double.eggshell
+    begin: \"
+    end: (?<!\\)\"
+  numeric:
+    match: (-|\.)?[0-9]+(\.[0-9]+)?
+    name: constant.numeric.eggshell
+  variable:
+    name: variable.source.eggshell
+    match: "[a-zA-Z][a-zA-Z0-9._\\[\\]]+"
+  variable-bad:
+    name: invalid.source.eggshell
+    match: \[^'\"\]?\w+[^\w]
+  parameters:
+    name: variable.parameter.eggshell
+    patterns:
+      - include: '#quote-single'
+      - include: '#quote-double'
+      - include: '#numeric'
+      - include: '#operators'
+      - include: '#variable'
+      - include: '#map'
+      - include: '#array'
+      - include: '#variable-bad'
+  interpolation:
+    name: support.function.interpol.eggshell
+    begin: (?<!\\)\$\{
+    end: \}
+    patterns:
+      - include: '#parameters'
+  map-entry:
+    name: constant.map.eggshell
+    begin: "(?<=[{,])('[^']*'|\"[^\"]*\"|[\\w_-]+):"
+    beginCaptures:
+      "1": {name: constant.map.eggshell}
+    end: "(?=[,}])"
+    patterns:
+      - include: '#parameters'
+  map:
+    name: entity.map.eggshell
+    begin: "\\{"
+    end: "\\}"
+    patterns:
+      - include: '#map-entry'
+  array:
+    name: entity.source.eggshell
+    begin: "\\["
+    end: "\\]"
+    patterns:
+      - include: '#parameters'
+  attribute:
+    name: entity.other.attribute-name.eggshell
+    begin: "(?<=[ <])([_a-zA-Z][\\w:-]*)="
+    end: (?=['">])
+    patterns:
+      - include: '#quote-single'
+      - include: '#quote-double'
+  attribute-simple:
+    name: entity.other.attribute-name.simple.eggshell
+    match: \[a-zA-Z\]\[\\w-:\]+\b
+
+  html:
+    name: entity.name.tag.eggshell
+    begin: \<[a-zA-Z_][\w:-]*
+    end: \>
+    patterns:
+      - include: '#attribute'
+      - include: '#attribute-simple'
+  html-end:
+    name: entity.name.tag.eggshell
+    match: </([a-zA-Z_][\w:]*)>
+  code-tick:
+    name: markup.raw.eggshell
+    begin: '`'
+    end: '`'
+    patterns:
+      - include: '#interpolation'
+  code-brace:
+    name: markup.raw.eggshell
+    begin: '\{\{'
+    end: '\}\}'
+    patterns:
+      - include: '#interpolation'
+  inline-bold:
+    name: markup.bold
+    begin: \[\*
+    end: \*\]
+  inline-italic:
+    name: markup.italic
+    begin: \[_
+    end: _\]
+  inline-other:
+    name: markup.other
+    begin: \[-
+    end: -\]
+  inlines:
+    patterns:
+      - include: '#inline-bold'
+      - include: '#inline-italic'
+      - include: '#inline-other'
+  # @todo inline markups

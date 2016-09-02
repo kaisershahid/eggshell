@@ -1,0 +1,119 @@
+name: Eggshell Dark
+settings:
+  - settings:
+      scope: eggshell
+      caret: '#ff0000'
+      lineHighlight: '#ff0000'
+      background: '#030303'
+      foreground: '#ffffff'
+
+  - name: 'Comment'
+    scope: comment
+    settings:
+      foreground: '#99cc99'
+
+  - name: 'Invalid'
+    scope: invalid
+    settings:
+      background: '#ff0000'
+      foreground: '#ffffff'
+
+  - name: 'Code'
+    scope: markup.raw
+    settings:
+      background: '#999999'
+      foreground: '#ffffff'
+
+  - name: 'Operator'
+    scope: support.operator
+    settings:
+      foreground: '#ffcc00'
+
+  - name: 'String'
+    scope: string
+    settings:
+      foreground: '#ffccaa'
+  - name: 'String Quoted'
+    scope: string.quoted
+    settings:
+      foreground: '#ffffff'
+
+  - name: 'Constants'
+    scope: constant
+    settings:
+      foreground: '#00ccff'
+
+  - name: 'Variables'
+    scope: variable
+    settings:
+      foreground: '#ffcc00'
+  - name: 'Variable Parameters'
+    scope: variable
+    settings:
+      background: '#333333'
+      foreground: '#ffcc00'
+
+  - name: 'Macro'
+    scope: support
+    settings:
+      foreground: '#cc0000'
+  - name: 'Macro Name'
+    scope: support.function
+    settings:
+      foreground: '#ff0000'
+
+  - name: 'Hash'
+    scope: variable.parameter
+    settings:
+      foreground: '#ffff00'
+  - name: 'Hash Entry'
+    scope: string.key.map.eggshell
+    settings:
+      foreground: '#00ffcc'
+  - name: 'Block Name'
+    scope: entity.name.function
+    settings:
+      foreground: '#00ccdd'
+
+  - name: 'Interpolation'
+    scope: support.function.interpol
+    settings:
+      background: '#333333'
+
+  - name: 'HTML Tag'
+    scope: entity.name.tag, meta.tag
+    settings:
+      foreground: '#ccffaa'
+      background: '#333333'
+  - name: 'HTML Attribute'
+    scope: entity.other.attribute-name
+    settings:
+      foreground: '#ccffaa'
+  - name: 'HTML Attribute'
+    scope: markup.other
+    settings:
+      foreground: '#ccffaa'
+      background: '#333333'
+
+  - name: 'Markup Bold'
+    scope: markup.bold
+    settings:
+      foreground: '#000000'
+      background: '#ffcc00'
+  - name: 'Markup Italic'
+    scope: markup.italic
+    settings:
+      foreground: '#000000'
+      background: '#00ccff'
+  - name: 'Markup Other'
+    scope: markup.other
+    settings:
+      foreground: '#000000'
+      background: '#ffffff'
+  - name: 'Markup Other (HTML block)'
+    scope: markup.other.block
+    settings:
+      foreground: '#aaaaa3'
+      background: '#33333a'
+
+uuid: 2ccdf3dc-82b9-49bd-b811-273d1cf123cf
