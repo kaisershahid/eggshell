@@ -2,7 +2,7 @@
 ---
 name: Eggshell
 scopeName: eggshell
-fileTypes: ["eggs", "eggshell"]
+fileTypes: ["eggs", "eggshell", ".eggshell"]
 uuid: 7a823ca8-8c7f-472f-9d55-760b95a87532
 
 patterns:
@@ -23,28 +23,14 @@ patterns:
     captures:
       "1": {name: entity.name.tag.eggshell}
     end: ^$
+    patterns:
+      - include: '#interpolation'
 
-  # - #macro, macro {
-  #   name: meta.function.macro.eggshell
-  #   match: ^\s*@([\w!=]+)\s*(\{[^\s]*|)\s*$
-  #   captures:
-  #     "1": {name: entity.name.function.macro.eggshell}
-  #     "2": {name: variable.parameter.eggshell}
-  # - #macro
-  #   name: meta.function.macro.eggshell
-  #   begin: ^\s*@([\w!=]+)\s*\(
-  #   beginCaptures:
-  #     "1": {name: entity.name.function.macro.eggshell}
-  #   end: \)\s*(\{[^\s]*|)\s*$
-  #   patterns:
-  #     - include: '#parameters'
-  # - #end macro
-  #   name: support.function.macro.eggshell
-  #   match: ^\s*[^\s]*\}$
   - patterns:
     - include: '#macro-simple'
     - include: '#macro'
     - include: '#macro-end'
+
   - # html blocks
     name: markup.raw.block.eggshell
     begin: "^<((script|style|div|blockquote|p|pre)[^>]*)>"
@@ -54,6 +40,7 @@ patterns:
     endCaptures:
       "1": {name: "entity.name.tag.eggshell"}
     patterns:
+      - include: '#interpolation'
       - include: '#macro-simple'
       - include: '#macro'
       - include: '#macro-end'

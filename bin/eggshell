@@ -7,18 +7,22 @@ if !f || !File.exists?(f)
 	exit
 end
 
+file_dir = File.realdirpath(File.dirname(f))
 $eggshell = Eggshell::Processor.new
-$eggshell.vars[:include_paths] << File.realdirpath(File.dirname(f))
+$eggshell.vars[:include_paths] << file_dir
 Eggshell::Bundles::Registry.attach_bundle('basics', $eggshell)
 
-home = Dir.home
-if File.exists?("#{home}/.eggshell")
-	require_relative '../lib/eggshell/bundles/loader.rb'
-	$loader = Eggshell::Processor.new
-	$loader.vars[:target] = $eggshell
-	Eggshell::Bundles::Registry.attach_bundle('loader', $loader)
-	$loader.process(IO.readlines("#{home}/.eggshell"))
-	$eggshell._info("loaded ~/.eggshell")
+require_relative '../lib/eggshell/bundles/loader.rb'
+$loader = Eggshell::Processor.new
+$loader.vars[:target] = $eggshell
+Eggshell::Bundles::Registry.attach_bundle('loader', $loader)
+
+lookups = [Dir.home, file_dir]
+lookups.each do |home|
+	if File.exists?("#{home}/.eggshell")
+		$loader.process(IO.readlines("#{home}/.eggshell"))
+		$eggshell._info("loaded #{home}/.eggshell")
+	end
 end
 
 # @todo parse any additional opts via command line or local project?

@@ -599,6 +599,7 @@ module Eggshell
 				else
 					part = part.gsub(/(\[\*{1,2}|\*{1,2}\]|\[_{1,2}|_{1,2}\]|\[-_?|_?-\])/, HASH_FMT_DECORATORS)
 
+					# @todo add hooks for this so we don't have this overcomplicated code here
 					# handle sub & sup scripts specially. if prefixed with '!', resolve and link to internal footnote
 					part = part.gsub(/\/\^(.+)\^\//) do |match|
 						el = $1

@@ -23,6 +23,7 @@ module Eggshell::Bundles::Loader
 				args.each do |gemname|
 					begin
 						require gemname
+						@proc._debug("_loaded gem: #{gemname}")
 					rescue LoadError
 						@proc._warn("could not load gem: #{gemname}")
 					end
@@ -30,7 +31,16 @@ module Eggshell::Bundles::Loader
 			elsif macname == 'files'
 				args.each do |file|
 					begin
-						require file
+						if file[0] == '/'
+							require file
+						else
+							@proc.vars[:target].vars[:include_paths].each do |root|
+								if File.exists?("#{root}/#{file}")
+									require "#{root}/#{file}"
+									@proc._debug("loaded file: #{root}/#{file}")
+								end
+							end
+						end
 					rescue LoadError
 						@proc._warn("could not load file: #{file}")
 					end

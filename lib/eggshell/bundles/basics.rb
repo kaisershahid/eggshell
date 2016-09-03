@@ -31,10 +31,10 @@ class Eggshell::Bundles::Basics
 			# @todo read block_param arguments
 			if name[0] == 'h'
 				if name == 'hr'
-					buff << "<hr />"
+					buffer << "<hr />"
 				else
 					id = line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
-					buffer << "<#{name} id='#{id}'>#{line}</#{name}>"
+					buffer << "<#{name} id='#{id}'>#{line[3..line.length]}</#{name}>"
 				end
 				return DONE
 			end
@@ -190,7 +190,7 @@ class Eggshell::Bundles::Basics
 						cols = line[idx..line.length].split(sep)
 						@proc.vars['t.row'] = rc
 						rclass = row_classes[rc % row_classes.length]
-						buff << "<tr class='#{rc} #{rclass}'>"
+						buff << "<tr class='tr-row-#{rc} #{rclass}'>"
 						cols.each do |col|
 							buff << "\t#{fmt_cell(col, false, ccount)}"
 							ccount += 1
