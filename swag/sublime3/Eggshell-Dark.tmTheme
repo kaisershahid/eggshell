@@ -56,6 +56,8 @@
 			<string>markup.raw.block</string>
 			<key>settings</key>
 			<dict>
+				<key>background</key>
+				<string>#332033</string>
 				<key>foreground</key>
 				<string>#eeeeee</string>
 			</dict>
@@ -69,6 +71,8 @@
 			<dict>
 				<key>background</key>
 				<string>#332033</string>
+				<key>fontStyle</key>
+				<string>bold</string>
 				<key>foreground</key>
 				<string>#cccccc</string>
 			</dict>
@@ -230,7 +234,7 @@
 				<key>fontStyle</key>
 				<string>bold</string>
 				<key>foreground</key>
-				<string>#bbaabb</string>
+				<string>#ffcc00</string>
 			</dict>
 		</dict>
 		<dict>
@@ -245,7 +249,7 @@
 				<key>fontStyle</key>
 				<string>italic</string>
 				<key>foreground</key>
-				<string>#ffeeff</string>
+				<string>#ffcc00</string>
 			</dict>
 		</dict>
 		<dict>
@@ -256,7 +260,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#ffddff</string>
+				<string>#ffcc00</string>
 			</dict>
 		</dict>
 		<dict>

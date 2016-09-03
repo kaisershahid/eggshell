@@ -1,8 +1,8 @@
 # [PackageDev] target_format: plist, ext: tmLanguage
 ---
 name: Eggshell
-scopeName: eggshell
-fileTypes: ["eggs", "eggshell", ".eggshell"]
+scopeName: text.eggshell
+fileTypes: ["eggs", "eggshell"]
 uuid: 7a823ca8-8c7f-472f-9d55-760b95a87532
 
 patterns:
@@ -17,6 +17,7 @@ patterns:
     end: ^$
     patterns:
       - include: '#inlines'
+      - include: '#interpolation'
   -
     name: markup.raw.block.eggshell
     begin: '(raw)\.'
@@ -26,28 +27,27 @@ patterns:
     patterns:
       - include: '#interpolation'
 
+    # any line
   - patterns:
     - include: '#macro-simple'
     - include: '#macro'
     - include: '#macro-end'
 
-  - # html blocks
-    name: markup.raw.block.eggshell
-    begin: "^<((script|style|div|blockquote|p|pre)[^>]*)>"
-    beginCaptures:
-      "1": {name: "entity.name.tag.eggshell"}
-    end: "</(script|style|div|blockquote|p|pre)>$"
-    endCaptures:
-      "1": {name: "entity.name.tag.eggshell"}
+  - # html
+    name: entity.name.tag.eggshell
+    begin: \<[a-zA-Z_][\w:-]*
+    end: \>
     patterns:
       - include: '#interpolation'
-      - include: '#macro-simple'
-      - include: '#macro'
-      - include: '#macro-end'
+      - include: '#attribute'
+      - include: '#attribute-simple'
+  -
+    name: entity.name.tag.eggshell
+    match: \</[a-zA-Z_][\w:-]*>
 
   - #block with 'tag'
     name: string.line.block.eggshell
-    begin: ^\s*([a-z0-9_-]+\.|[|\\/#<>*+-]+)
+    begin: ^\s*([a-z0-9_-]+\. |[|\\/#<>*+-]+)
     end: $
     captures:
       "1": {name: entity.name.tag.eggshell}
@@ -110,7 +110,7 @@ repository:
     patterns:
       - include: '#parameters'
   map-entry:
-    begin: "(?<=[{,])('[^']*'|\"[^\"]*\"|[\\w_-]+):"
+    begin: "(?<=\\{|,|, )('[^']*'|\"[^\"]*\"|[\\w_-]+):"
     beginCaptures:
       "1": {name: constant.character.map.eggshell}
     end: "(?=[,}])"

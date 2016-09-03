@@ -24,11 +24,13 @@ settings:
     scope: markup.raw.block
     settings:
       foreground: '#eeeeee'
+      background: '#332033'
   - name: 'Code (Inline)'
     scope: markup.raw.code
     settings:
       foreground: '#cccccc'
       background: '#332033'
+      fontStyle: bold
 
   - name: 'Operator'
     scope: support.operator
@@ -100,24 +102,26 @@ settings:
   - name: 'Markup Bold'
     scope: markup.bold
     settings:
-      foreground: '#bbaabb'
+      foreground: '#ffcc00'
       background: '#33333a'
       fontStyle: bold
   - name: 'Markup Italic'
     scope: markup.italic
     settings:
-      foreground: '#ffeeff'
+      foreground: '#ffcc00'
       background: '#33333a'
       fontStyle: italic
   - name: 'Markup Other'
     scope: markup.other
     settings:
-      foreground: '#ffddff'
-      #background: '#33333a'
+      foreground: '#ffcc00'
   - name: 'Markup Other (HTML block)'
     scope: markup.other.block
     settings:
       foreground: '#bbaabb'
-      #background: '#33333a'
+  # - name: 'TEST '
+  #   scope: string.line.block.eggshell markup.raw.code.eggshell
+  #   settings:
+  #     foreground: '#ffcc00'
 
 uuid: 2ccdf3dc-82b9-49bd-b811-273d1cf123cf

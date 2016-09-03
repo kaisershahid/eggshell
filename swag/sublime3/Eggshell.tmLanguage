@@ -6,7 +6,6 @@
 	<array>
 		<string>eggs</string>
 		<string>eggshell</string>
-		<string>.eggshell</string>
 	</array>
 	<key>name</key>
 	<string>Eggshell</string>
@@ -38,6 +37,10 @@
 				<dict>
 					<key>include</key>
 					<string>#inlines</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#interpolation</string>
 				</dict>
 			</array>
 		</dict>
@@ -83,27 +86,11 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^&lt;((script|style|div|blockquote|p|pre)[^&gt;]*)&gt;</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.tag.eggshell</string>
-				</dict>
-			</dict>
+			<string>\&lt;[a-zA-Z_][\w:-]*</string>
 			<key>end</key>
-			<string>&lt;/(script|style|div|blockquote|p|pre)&gt;$</string>
-			<key>endCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.tag.eggshell</string>
-				</dict>
-			</dict>
+			<string>\&gt;</string>
 			<key>name</key>
-			<string>markup.raw.block.eggshell</string>
+			<string>entity.name.zag.tag.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -112,21 +99,34 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#macro-simple</string>
+					<string>#attribute</string>
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#macro</string>
+					<string>#attribute-simple</string>
 				</dict>
+			</array>
+			<key>push</key>
+			<string>Packages/HTML/HTML.sublime-syntax</string>
+			<key>with_prototype</key>
+			<array>
 				<dict>
-					<key>include</key>
-					<string>#macro-end</string>
+					<key>match</key>
+					<string>(?=&lt;/[a-zA-Z_][\w:-]*&gt;)</string>
+					<key>pop</key>
+					<true/>
 				</dict>
 			</array>
 		</dict>
 		<dict>
+			<key>match</key>
+			<string>\&lt;/[a-zA-Z_][\w:-]*&gt;</string>
+			<key>name</key>
+			<string>entity.name.tag.eggshell</string>
+		</dict>
+		<dict>
 			<key>begin</key>
-			<string>^\s*([a-z0-9_-]+\.|[|\\/#&lt;&gt;*+-]+)</string>
+			<string>^\s*([a-z0-9_-]+\. |[|\\/#&lt;&gt;*+-]+)</string>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
@@ -443,7 +443,7 @@
 		<key>map-entry</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;=[{,])('[^']*'|"[^"]*"|[\w_-]+):</string>
+			<string>(?&lt;=\{|,|, )('[^']*'|"[^"]*"|[\w_-]+):</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -550,7 +550,7 @@
 		</dict>
 	</dict>
 	<key>scopeName</key>
-	<string>eggshell</string>
+	<string>text.eggshell</string>
 	<key>uuid</key>
 	<string>7a823ca8-8c7f-472f-9d55-760b95a87532</string>
 </dict>
