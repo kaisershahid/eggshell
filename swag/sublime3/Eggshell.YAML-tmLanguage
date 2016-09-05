@@ -18,8 +18,7 @@ patterns:
     patterns:
       - include: '#inlines'
       - include: '#interpolation'
-  -
-    name: markup.raw.block.eggshell
+  - name: markup.raw.block.eggshell
     begin: '(raw)\.'
     captures:
       "1": {name: entity.name.tag.eggshell}
@@ -27,11 +26,39 @@ patterns:
     patterns:
       - include: '#interpolation'
 
+  - # special html case: javascript
+    name: source.js
+    begin: "(<script([^>])*>)"
+    beginCaptures:
+      "1": {name: entity.name.tag.eggshell}
+      "2": {name: entity.other.attribute-name.eggshell}
+    end: "(</script>)"
+    endCaptures:
+      "1": {name: entity.name.tag.eggshell}
+    patterns:
+      - include: 'source.js'
+      - include: '#inlines'
+      - include: '#interpolation'
+  - # special html case: css
+    name: source.css
+    begin: "(<style([^>])*>)"
+    beginCaptures:
+      "1": {name: entity.name.tag.eggshell}
+      "2": {name: entity.other.attribute-name.eggshell}
+    end: "(</style>)"
+    endCaptures:
+      "1": {name: entity.name.tag.eggshell}
+    patterns:
+      - include: 'source.css'
+      - include: '#inlines'
+      - include: '#interpolation'
+
     # any line
   - patterns:
     - include: '#macro-simple'
     - include: '#macro'
     - include: '#macro-end'
+    - include: '#inlines'
 
   - # html
     name: entity.name.tag.eggshell
@@ -41,8 +68,7 @@ patterns:
       - include: '#interpolation'
       - include: '#attribute'
       - include: '#attribute-simple'
-  -
-    name: entity.name.tag.eggshell
+  - name: entity.name.tag.eggshell
     match: \</[a-zA-Z_][\w:-]*>
 
   - #block with 'tag'
@@ -82,7 +108,7 @@ patterns:
 repository:
   operators:
     name: support.operator.eggshell
-    match: "[+/*<>=%,-]+"
+    match: "[+/*<>=%,-\\[\\]]+"
   quote-single:
     name: string.quoted.single.eggshell
     begin: "'"
@@ -189,16 +215,19 @@ repository:
       - include: '#interpolation'
   inline-bold:
     name: markup.bold
-    begin: \[\*
-    end: \*\]
+    begin: \[\*+
+    end: \*+\]
   inline-italic:
     name: markup.italic
-    begin: \[_
-    end: _\]
+    begin: \[/+
+    end: /+\]
   inline-other:
     name: markup.other
-    begin: \[-
-    end: -\]
+    begin: "\\[[%~=!?.^/*_+-]+"
+    end: "[%~=!?.^/*_+-]+\\]"
+    patterns:
+      - include: '#interpolation'
+      - include: '#operators'
   inlines:
     patterns:
       - include: '#inline-bold'

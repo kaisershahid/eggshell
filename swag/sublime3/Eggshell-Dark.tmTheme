@@ -259,8 +259,10 @@
 			<string>markup.other</string>
 			<key>settings</key>
 			<dict>
+				<key>background</key>
+				<string>#33333a</string>
 				<key>foreground</key>
-				<string>#ffcc00</string>
+				<string>#ffff00</string>
 			</dict>
 		</dict>
 		<dict>

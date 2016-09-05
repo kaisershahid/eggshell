@@ -114,7 +114,8 @@ settings:
   - name: 'Markup Other'
     scope: markup.other
     settings:
-      foreground: '#ffcc00'
+      foreground: '#ffff00'
+      background: '#33333a'
   - name: 'Markup Other (HTML block)'
     scope: markup.other.block
     settings:

@@ -2,13 +2,10 @@ class Eggshell::Bundles::Basics
 	BUNDLE_ID = 'basics'
 
 	def self.new_instance(proc, opts = nil)
-		bbasics = BasicBlocks.new
-		mbasics = BasicMacros.new
-		mcntrls = ControlMacros.new
-
-		bbasics.set_processor(proc)
-		mbasics.set_processor(proc)
-		mcntrls.set_processor(proc)
+		BasicBlocks.new.set_processor(proc)
+		InlineMacros.new.set_processor(proc)
+		BasicMacros.new.set_processor(proc)
+		ControlMacros.new.set_processor(proc)
 
 		proc.register_functions('', StdFunctions::FUNC_NAMES)
 		proc.register_functions('sprintf', Kernel)
@@ -45,7 +42,7 @@ class Eggshell::Bundles::Basics
 					end
 					# @todo track id and header type for TOC
 					id = bp['id'] || line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
-					buffer << "<#{name} id='#{id}' class='#{clazz}' style='#{style}' #{abuff.join(' ')}>#{line}</#{name}>"
+					buffer << "<#{name} id='#{id}' class='#{clazz}' style='#{style}' #{abuff.join(' ')}>#{@proc.fmt_line(line)}</#{name}>"
 				end
 				return DONE
 			end
@@ -331,6 +328,93 @@ class Eggshell::Bundles::Basics
 			return buff.join('')
 		end
 	end
+	
+	class InlineMacros
+		include Eggshell::MacroHandler
+
+		def initialize
+			@capvar = nil
+			@collbuff = nil
+			@depth = 0
+		end
+
+		HASH_FMT_DECORATORS = {
+			'[*' => '<b>',
+			'[**' => '<strong>',
+			'[_' => '<i>',
+			'[__' => '<em>',
+			'*]'=> '</b>',
+			'**]' => '</strong>',
+			'_]' => '</i>',
+			'__]' => '</em>',
+			'[-_' => '<u>',
+			'_-]' => '</u>',
+			'[-' => '<strike>',
+			'-]' => '</strike>'
+		}.freeze
+
+		def set_processor(eggshell)
+			@proc = eggshell
+			@proc.register_macro(self, '[!', '[~', '[^', '[.', '[*', '[**', '[/', '[//', '[_', '[-')
+		end
+
+		def process(buffer, macname, args, lines, depth)
+			prefix = macname[0..1]
+			textpart = args.shift
+			tag = nil
+
+			case prefix
+			when '[^'
+				tag = 'sup'
+			when '[.'
+				tag = 'sup'
+			when '[*'
+				tag = macname == '[**' ? 'strong' : 'b'
+			when '[/'
+				tag = macname == '[//' ? 'em' : 'i'
+			when '[-'
+				tag = 'strike'
+			when '[_'
+				tag = 'u'
+			when '[~'
+				tag = 'a'
+				link = textpart
+				text = nil
+				if link == ''
+					text = ''
+				else
+					textpart, link = link.split('; ')
+					args.unshift('href:'+link)
+				end
+			when '[!'
+				tag = 'img'
+				args.unshift('src:'+textpart)
+				textpart = nil
+			end
+			
+			buffer << restructure_html(tag, textpart, args)
+		end
+		
+		def restructure_html(tag, text, attributes = [])
+			buff = "<#{tag}"
+			attributes.each do |attrib|
+				key, val = attrib.split(':', 2)
+				# @todo html escape?
+				if val
+					buff = "#{buff} #{key}=\"#{val.gsub('\\|', '|')}\""
+				else
+					buff = "#{buff} #{key}"
+				end
+			end
+
+			if text == nil
+				buff += ' />'
+			else
+				buff = "#{buff}>#{text}</#{tag}>"
+			end
+			buff
+		end
+	end	
 
 	# Macros:
 	# 

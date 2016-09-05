@@ -1,0 +1,45 @@
+%YAML 1.2
+name: Eggshell v2
+scope: text.eggshell
+file_extensions: ["eggs", "eggshell"]
+
+contexts:
+  main:
+    - match: "<[a-zA-Z_][\\w:-]*"
+      scope: entity.name.tag
+      push: in_tag
+  in_tag:
+    - match: "\\s+"
+      scope: string.empty
+    - match: "[a-zA-Z_][\\w:-]*"
+      scope: entity.other.attribute-name
+      push: in_tag_attr
+    - match: "\\s*/>"
+      pop: true
+    - match: ">"
+      scope: entity.name.tag
+      push: "Packages/HTML/HTML.sublime-syntax"
+
+  in_tag_attr:
+    - match: =\"
+      scope: string.quoted.double
+      push: in_dbl_quote
+    - match: =\'
+      scope: string.quoted.single
+      push: in_sngl_quote
+    - match: (?=>| )
+      pop: true
+    - match: .
+      scope: invalid
+  in_dbl_quote:
+    - meta_scope: string.quoted.double
+    - match: \\.
+      scope: constant.character.escape
+    - match: \"
+      pop: true
+  in_sngl_quote:
+    - meta_scope: string.quoted.single
+    - match: \\.
+      scope: constant.character.escape
+    - match: \'
+      pop: true

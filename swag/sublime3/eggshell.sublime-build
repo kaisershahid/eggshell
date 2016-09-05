@@ -1,0 +1,4 @@
+{
+	"shell_cmd": "eggshell $file > $file_base_name.html",
+	"selector": "text.eggshell"
+}

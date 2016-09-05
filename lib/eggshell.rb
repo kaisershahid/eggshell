@@ -567,6 +567,12 @@ module Eggshell
 		def html_escape(str)
 			return str.gsub(/("|'|<|>|&)/, HASH_HTML_ESCAPE)
 		end
+		
+		# Symbols in conjunction with '[' prefix and ']' suffix that define shortcut macros.
+		# While extensible, the standard macros are: `*`, `**`, `_`, `__`, `-`, `-_`, `^`, `.`
+		MACRO_OPS = "%~=!?.^\\/*_+-"
+		INLINE_MARKUP_REGEX_OP = Regexp.new("\\[[#{MACRO_OPS}]+")
+		INLINE_MARKUP = Regexp.new("(`|\\{\\{|\\}\\}|\\[[#{MACRO_OPS}]+|[#{MACRO_OPS}]+\\]|\\\\|\\|)")
 
 		# Expands markup for a specific line.
 		def fmt_line(expr)
@@ -580,10 +586,20 @@ module Eggshell
 			macro = false
 			macro_buff = ''
 
+			inline_op = nil
+			inline_delim = nil
+			inline_args = nil
+			inline_part = nil
+			inline_esc = false
+
 			# split and preserve delimiters: ` {{ }} [[ ]]
 			# - preserve contents of code blocks (only replacing unescaped placeholder values)
 			## - handle anchor and image
-			expr.split(/(`|\{\{|\}\}|\[\[|\]\])/).each do |part|
+			toks = expr.split(INLINE_MARKUP)
+			i = 0
+			while i < toks.length
+				part = toks[i]
+				i+= 1
 				if part == '`' && !cd
 					if !bt
 						bt = true
@@ -600,121 +616,61 @@ module Eggshell
 					cd = false
 				elsif bt || cd
 					buff << html_escape(expand_expr(part))
-				elsif part == '[['
-					# open link or image
-					tok = nil
-					if buff.length == 0
-						an = true
-					else
-						last = buff[buff.length-1]
-						if last.length == 0
-							tok = ''
-						else
-							tok = last[-1]
-						end
-					end
-
-					if tok == ' ' || tok == '' || tok == '>'
-						an = true
-					else
-						buff << '[['
-					end
-				elsif part == ']]' && (im || an)
-					im = false
-					an = false
-				elsif an
-					if part[0] == '!'
-						part = part[1..part.length]
-						im = true
-						an = false
-					end
-
-					if an
-						href, text, attribs = part.split('|', 3)
-						buff << "<a href='#{html_escape(href)}' #{attribs}>#{text}</a>"
-					else
-						comps = part.split('|', 5)
-						src = comps.shift
-						atts = ["src='#{html_escape(src)}'"]
-						href = nil
-						aattribs = nil
-						comps.each do |comp|
-							if comp.match(/^(\d+x?\d*|\d*x\d+)$/)
-								w, h = comp.split('x')
-								atts << "width='#{w}'" if w != ''
-								atts << "height='#{h}'" if h && h != ''
-							elsif comp[0] == '>'
-								href, aattribs = comp[1..comp.length].split('|', 2)
-							elsif comp.match(/\w+=/)
-								atts << comp
-							else
-								atts << "title='#{html_escape(comp)}'"
-							end
-						end
-
-						if href
-							buff << "<a href='#{html_escape(href)}' #{aattribs}>"
-						end
-						buff << "<img #{atts.join(' ')} />"
-						if href
-							buff << "</a>"
-						end
-					end
+				elsif (part[0] == '[' && part.match(INLINE_MARKUP_REGEX_OP)) || part == '/^' || part == '/_'
+					
+					# parse OP + {term or '|'}* + DELIM
+					inline_op = part
+					i = expand_macro_brackets(inline_op, i, toks, buff)
+					inline_op = nil
 				else
+					# @todo move this into inline macro realm
 					part = part.gsub(/(\[\*{1,2}|\*{1,2}\]|\[_{1,2}|_{1,2}\]|\[-_?|_?-\])/, HASH_FMT_DECORATORS)
-
-					# @todo add hooks for this so we don't have this overcomplicated code here
-					# handle sub & sup scripts specially. if prefixed with '!', resolve and link to internal footnote
-					part = part.gsub(/\/\^(.+)\^\//) do |match|
-						el = $1
-						ref = nil
-						if el[0] == '!'
-							el = el[1..el.length]
-							ref = ref_find(el)
-						end
-
-						if ref
-							"<sup><a href='##{ref[:anchor]}'>#{el}</a></sup>"
-						else
-							"<sup>#{el}</sup>"
-						end
-					end
-
-					part = part.gsub(/\/_(.+)_\//) do |match|
-						el = $1
-						ref = nil
-						if el[0] == '!'
-							el = el[1..el.length]
-							ref = ref_find(el)
-						end
-
-						if ref
-							"<sub><a href='##{ref[:anchor]}'>#{el}</a></sub>"
-						else
-							"<sub>#{el}</sub>"
-						end
-					end
-
 					buff << part
 				end
 			end
-
+			# if inline_op
+			# 	inline_args << inline_part if inline_part
+			# 	@macros[inline_op].process(buff, inline_op, inline_args, nil, nil)
+			# end
 			return expand_expr(buff.join(''))
 		end
+		
+		def expand_macro_brackets(inline_op, i, toks, buff)
+			inline_delim = inline_op.reverse.gsub('[', ']')
+			inline_args = []
+			inline_part = nil
+			inline_esc = false
 
-		# Adds a reference. Example formats:
-		#
-		# <pre>
-		# Smith, John. 
-		# #key Smith, John.
-		# </pre>
-		def ref_add(line)
-		end
-
-		def ref_find(el)
-			if @vars[:references][el]
-				return @vars[:references][el]
+			# @todo check for quotes?
+			# @todo make this a static function
+			while i < toks.length
+				part = toks[i]
+				i += 1
+				
+				if inline_esc
+					inline_part += part
+					inline_esc = false if part != ''
+				elsif part == '\\'
+					esc = true
+				elsif part.match(INLINE_MARKUP_REGEX_OP)
+					i = expand_macro_brackets(part, i, toks, buff)
+					inline_part = '' if !inline_part
+					inline_part += buff.pop
+				elsif part == inline_delim
+					break
+				elsif part == '|'
+					inline_args << inline_part
+					inline_part = nil
+				else
+					inline_part = '' if !inline_part
+					inline_part += part
+				end
 			end
+
+			inline_args << inline_part if inline_part
+			@macros[inline_op].process(buff, inline_op, inline_args, nil, nil)
+			
+			return i
 		end
 	end
 end
