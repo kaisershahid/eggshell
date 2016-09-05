@@ -286,6 +286,7 @@ class Eggshell::ExpressionEvaluator
 					stack << arr
 					ptr = arr
 				else
+					#$stderr.write("--- #{str}\n")
 					term += '['
 				end
 			elsif state[d] == :tern && tok == ':'
@@ -587,7 +588,7 @@ class Eggshell::ExpressionEvaluator
 	# @param Map ftable Map for function calls.
 	def self.expr_eval(expr, vtable, ftable)
 		#puts "EXPAND: init #{expr.inspect}"
-		expr = expr[0] if expr.length == 1
+		expr = expr[0] if expr.is_a?(Array) && expr.length == 1
 
 		ret = nil
 		if expr.is_a?(ExprArray) || expr.is_a?(ExprHash)

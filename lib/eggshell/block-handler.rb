@@ -17,6 +17,11 @@ module Eggshell::BlockHandler
 
 	def set_processor(proc)
 	end
+	
+	def set_block_params(name)
+		@block_params = {} if !@block_params
+		@block_params[name] = @proc.get_block_params(name)
+	end
 
 	def start(name, line, buffer, indents = '', indent_level = 0)
 	end

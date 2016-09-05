@@ -28,13 +28,24 @@ class Eggshell::Bundles::Basics
 		end
 
 		def start(name, line, buffer, indents = '', indent_level = 0)
+			set_block_params(name)
+			bp = @block_params[name]
+
 			# @todo read block_param arguments
 			if name[0] == 'h'
 				if name == 'hr'
 					buffer << "<hr />"
 				else
-					id = line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
-					buffer << "<#{name} id='#{id}'>#{line[3..line.length]}</#{name}>"
+					clazz = bp['class'] || ''
+					style = bp['style'] || '' 
+					attrs = bp['attributes'] || []
+					abuff = []
+					attrs.each do |key,val|
+						abuff << "#{key}='#{val}'"
+					end
+					# @todo track id and header type for TOC
+					id = bp['id'] || line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
+					buffer << "<#{name} id='#{id}' class='#{clazz}' style='#{style}' #{abuff.join(' ')}>#{line}</#{name}>"
 				end
 				return DONE
 			end
@@ -48,20 +59,20 @@ class Eggshell::Bundles::Basics
 			if name == 'table' || name == '/' || name == '|'
 				@type = :table
 				@lines = []
-				@lines << line if line != 'table'
+				@lines << line if name != 'table'
 				return COLLECT
 			end
 
 			if name == '>'
 				@type = :dt
-				@lines = [line[1..-1].split('::', 2)]
+				@lines = [line.split('::', 2)]
 				return COLLECT
 			end
 
 			# assume block text
 			@type = name
 			if line.index(name) == 0
-				line = line[name.length+1..-1].lstrip
+				line = line.lstrip
 			end
 			@lines = [@type == 'raw' ? line : @proc.fmt_line(line)]
 

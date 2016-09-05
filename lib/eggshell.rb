@@ -55,12 +55,14 @@ module Eggshell
 
 	class Processor
 		BLOCK_MATCH = /^([a-z0-9_-]+\.|[|\/#><*+-]+)/
+		BLOCK_MATCH_PARAMS = /^([a-z0-9_-]+|[|\/#><*+-]+)\(/
 
 		def initialize
 			@vars = {:references => {}, :toc => [], :include_paths => [], 'log.level' => '1'}
 			@funcs = {}
 			@macros = {}
 			@blocks = {}
+			@block_params = {}
 			@expr_cache = {}
 
 			@noop_macro = Eggshell::MacroHandler::Defaults::NoOpHandler.new
@@ -222,6 +224,45 @@ module Eggshell
 
 		TAB = "\t"
 		TAB_SPACE = '    '
+		
+		# html tags that have end-block checks. any block starting with one of these tags will have
+		# its contents passed through until end of the tag
+		HTML_BLOCK = /^<(p|div|style|script|blockquote|pre)/
+		
+		# @param Boolean is_default If true, associates these parameters with the 
+		# `block_type` used in `get_block_param()` or explicitly in third parameter.
+		# @param String block_type
+		def set_block_params(params, is_default = false, block_type = nil)
+			@block_params[:pending] = params
+			if block_type && is_default
+				@block_params[block_type] = params
+			else
+				@block_param_default = is_default
+			end
+		end
+		
+		# Gets the block parameters for a block type, and merges default values if available.
+		def get_block_params(block_type)
+			bp = @block_params.delete(:pending)
+			if @block_params_default
+				if block_type && bp
+					@block_params[block_type] = bp if bp
+				end
+				@block_params_default = false
+				bp = {} if !bp
+			else
+				bp = {} if !bp
+				default = @block_params[block_type]
+				if default
+					default.each do |key,val|
+						if !bp.has_key?(key)
+							bp[key] = val.clone
+						end
+					end
+				end
+			end
+			return bp
+		end
 
 		# Iterates through each line of a source document and processes block-level items
 		# @param Fixnum call_depth For macro processing. Allows accurate tracking of nested
@@ -365,6 +406,12 @@ module Eggshell
 					else
 						macro = line[1..line.length]
 					end
+					
+					# special case block parameter
+					if macro == '!'
+						set_block_params(args[0], args[1])
+						next
+					end
 
 					macro_handler = @macros[macro]
 					if macro_handler
@@ -442,13 +489,34 @@ module Eggshell
 				end
 
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
-				block_type = line.match(BLOCK_MATCH)
-				if block_type && block_type[0].strip != ''
-					block_type = block_type[1]
-					block_type = block_type[0..-2] if block_type[-1] == '.'
+				# two checks: block(params). ; block.
+				block_type = nil
+				bt = line.match(BLOCK_MATCH_PARAMS)
+				if bt
+					idx0 = bt[0].length
+					idx1 = line.index(').', idx0)
+					if idx1
+						block_type = line[0..idx0-2]
+						params = line[idx0-1...idx1+1].strip
+						line = line[idx1+2..line.length] || ''
+						if params != ''
+							struct = Eggshell::ExpressionEvaluator.struct(params)
+							args = expr_eval(struct)
+							set_block_params(args[0], args[1])
+						end
+					end
 				else
-					block_type = 'p'
+					block_type = line.match(BLOCK_MATCH)
+					if block_type && block_type[0].strip != ''
+						block_type = block_type[1]
+						len = block_type.length
+						block_type = block_type[0..-2] if block_type[-1] == '.'
+						line = line[len..line.length] || ''
+					else
+						block_type = nil
+					end
 				end
+				block_type = 'p' if !block_type
 
 				block_handler = @blocks[block_type]
 				block_handler = @noop_block if !block_handler 
@@ -494,10 +562,6 @@ module Eggshell
 			'>' => '&gt;',
 			'&' => '&amp;'
 		}.freeze
-
-		# html tags that have end-block checks. any block starting with one of these tags will have
-		# its contents passed through until end of the tag
-		HTML_BLOCK = /^<(p|div|style|script|blockquote|pre)/
 
 		# @todo more chars
 		def html_escape(str)

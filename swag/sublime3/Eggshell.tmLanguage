@@ -90,7 +90,7 @@
 			<key>end</key>
 			<string>\&gt;</string>
 			<key>name</key>
-			<string>entity.name.zag.tag.eggshell</string>
+			<string>entity.name.tag.eggshell</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -106,17 +106,6 @@
 					<string>#attribute-simple</string>
 				</dict>
 			</array>
-			<key>push</key>
-			<string>Packages/HTML/HTML.sublime-syntax</string>
-			<key>with_prototype</key>
-			<array>
-				<dict>
-					<key>match</key>
-					<string>(?=&lt;/[a-zA-Z_][\w:-]*&gt;)</string>
-					<key>pop</key>
-					<true/>
-				</dict>
-			</array>
 		</dict>
 		<dict>
 			<key>match</key>
@@ -127,7 +116,7 @@
 		<dict>
 			<key>begin</key>
 			<string>^\s*([a-z0-9_-]+\. |[|\\/#&lt;&gt;*+-]+)</string>
-			<key>captures</key>
+			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
 				<dict>
@@ -174,7 +163,30 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^</string>
+			<string>^\s*([a-z0-9_-]+|[|\\/#&lt;&gt;*+-]+)\(</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.tag.eggshell</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\).</string>
+			<key>name</key>
+			<string>string.line.block.eggshell</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#parameters</string>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>.</string>
 			<key>end</key>
 			<string>$</string>
 			<key>name</key>
@@ -183,11 +195,11 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#html</string>
+					<string>text.html.basic</string>
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#html-end</string>
+					<string>#html</string>
 				</dict>
 				<dict>
 					<key>include</key>

@@ -1,0 +1,7 @@
+{
+	"scope": "text.eggshell",
+	"completions": {
+		{"trigger": "@", "contents": "@macro(arg1,arg2,...)"},
+		{"trigger": "@@", "contents": "macro(arg1,arg2,...)@@"}
+	}
+}
