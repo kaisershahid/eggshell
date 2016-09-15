@@ -73,7 +73,7 @@ patterns:
 
   - #block with 'tag'
     name: string.line.block.eggshell
-    begin: ^\s*([a-z0-9_-]+\. |[|\\/#<>*+-]+)
+    begin: ^\s*([a-z0-9_-]+\.|[|\\/#<>*+-]+)
     end: $
     beginCaptures:
       "1": {name: entity.name.tag.eggshell}
@@ -226,8 +226,9 @@ repository:
     begin: "\\[[%~=!?.^/*_+-]+"
     end: "[%~=!?.^/*_+-]+\\]"
     patterns:
+      - include: '#inline-other'
       - include: '#interpolation'
-      - include: '#operators'
+      - include: '#map-entry'
   inlines:
     patterns:
       - include: '#inline-bold'

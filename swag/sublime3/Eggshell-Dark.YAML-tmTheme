@@ -99,6 +99,11 @@ settings:
       foreground: '#ccffaa'
       background: '#333333'
 
+  - name: 'Storage'
+    scope: storage
+    settings:
+      foreground: '#ccff00'
+
   - name: 'Markup Bold'
     scope: markup.bold
     settings:

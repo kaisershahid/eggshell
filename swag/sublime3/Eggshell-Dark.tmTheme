@@ -224,6 +224,17 @@
 		</dict>
 		<dict>
 			<key>name</key>
+			<string>Storage</string>
+			<key>scope</key>
+			<string>storage</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#ccff00</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
 			<string>Markup Bold</string>
 			<key>scope</key>
 			<string>markup.bold</string>

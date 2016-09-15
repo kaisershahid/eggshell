@@ -207,7 +207,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*([a-z0-9_-]+\. |[|\\/#&lt;&gt;*+-]+)</string>
+			<string>^\s*([a-z0-9_-]+\.|[|\\/#&lt;&gt;*+-]+)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -446,11 +446,15 @@
 			<array>
 				<dict>
 					<key>include</key>
+					<string>#inline-other</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#interpolation</string>
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#operators</string>
+					<string>#map-entry</string>
 				</dict>
 			</array>
 		</dict>

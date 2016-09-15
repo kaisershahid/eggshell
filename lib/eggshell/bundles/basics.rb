@@ -22,6 +22,7 @@ class Eggshell::Bundles::Basics
 		def set_processor(proc)
 			@proc = proc
 			@proc.register_block(self, *%w(h1 h2 h3 h4 h5 h6 hr table pre p bq div raw # - / | >))
+			@header_list = []
 		end
 
 		def start(name, line, buffer, indents = '', indent_level = 0)
@@ -33,6 +34,7 @@ class Eggshell::Bundles::Basics
 				if name == 'hr'
 					buffer << "<hr />"
 				else
+					lvl = name[1].to_i
 					clazz = bp['class'] || ''
 					style = bp['style'] || '' 
 					attrs = bp['attributes'] || []
@@ -42,7 +44,9 @@ class Eggshell::Bundles::Basics
 					end
 					# @todo track id and header type for TOC
 					id = bp['id'] || line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
-					buffer << "<#{name} id='#{id}' class='#{clazz}' style='#{style}' #{abuff.join(' ')}>#{@proc.fmt_line(line)}</#{name}>"
+					title = @proc.fmt_line(line)
+					buffer << "<#{name} id='#{id}' class='#{clazz}' style='#{style}' #{abuff.join(' ')}>#{title}</#{name}>"
+					@header_list << {:level => lvl, :id => id, :title => title}
 				end
 				return DONE
 			end
@@ -147,8 +151,7 @@ class Eggshell::Bundles::Basics
 				@lines << line
 			else
 				ret = (line[0] != '\\' && line != '') ? RETRY : DONE
-				params = @proc.vars[:block_params]
-				map = params.is_a?(Array) ? (params[0] || {}) : {}
+				map = @block_params['table']
 				tbl_class = map['class'] || ''
 				tbl_style = map['style'] || ''
 				tbl_attrib = ''
@@ -164,11 +167,10 @@ class Eggshell::Bundles::Basics
 
 				@proc.vars['t.row'] = 0
 				buff << "<table class='#{tbl_class}' style='#{tbl_style}'#{tbl_attrib}>"
-				cols = nil
+				cols = []
 				rows = 0
 				rc = 0
 				@lines.each do |line|
-					cols = []
 					ccount = 0
 					if line[0] == '/' && rows == 0
 						cols = line[1..line.length].split('|')
@@ -190,10 +192,10 @@ class Eggshell::Bundles::Basics
 						buff << '</tr></tfoot>'
 					elsif line[0] == '|' || line[0..1] == '|>'
 						idx = 1
-						sep = '|'
+						sep = /(?<!\\)\|/
 						if line[1] == '>'
 							idx = 2
-							sep = '|>'
+							sep = /(?<!\\)\|\>/
 						end
 						cols = line[idx..line.length].split(sep)
 						@proc.vars['t.row'] = rc
@@ -256,15 +258,18 @@ class Eggshell::Bundles::Basics
 				raw = true
 				# strip off first indent
 				if indent_level > 0
-					idx = indents.length / indent_level
-					line = indents[idx..-1] + line
+					#idx = indents.length / indent_level
+					line = indents + line
 					if pre
-						line += "\n" 
+						line = "\n#{line}"
 					elsif line == ''
 						line = ' '
 					end
 				else
 					blank = line == ''
+					if pre
+						line = "\n#{line}"
+					end
 				end
 			else
 				blank = line == ''
@@ -275,9 +280,10 @@ class Eggshell::Bundles::Basics
 				start_tag = ''
 				end_tag = ''
 				if @type != 'raw'
+					bp = @block_params[@type]
 					@type = 'blockquote' if @type == 'bq'
 					# @todo get attributes from block param
-					start_tag = "<#{@type}>"
+					start_tag = "<#{@type} class='#{bp['class']}' style='#{bp['style']}'>"
 					end_tag = "</#{@type}>"
 					join = @type == 'pre' ? "" : "<br />\n"
 
@@ -384,6 +390,7 @@ class Eggshell::Bundles::Basics
 					text = ''
 				else
 					textpart, link = link.split('; ')
+					link = '' if !link
 					args.unshift('href:'+link)
 				end
 			when '[!'
@@ -468,14 +475,20 @@ class Eggshell::Bundles::Basics
 				end
 			elsif macname == 'include'
 				paths = args[0]
+				opts = args[1] || {}
+				if opts['encoding']
+					opts[:encoding] = opts['encoding']
+				else
+					opts[:encoding] = 'utf-8'
+				end
 				if lines && lines.length > 0
 					paths = lines
 				end
-				do_include(paths, buffer, depth)
+				do_include(paths, buffer, depth, opts)
 			end
 		end
 
-		def do_include(paths, buff, depth)
+		def do_include(paths, buff, depth, opts = {})
 			paths = [paths] if !paths.is_a?(Array)
 			# @todo check all include paths?
 			paths.each do |inc|
@@ -497,7 +510,7 @@ class Eggshell::Bundles::Basics
 
 				checks.each do |inc|
 					if File.exists?(inc)
-						lines = IO.readlines(inc)
+						lines = IO.readlines(inc, $/, opts)
 						buff << @proc.process(lines, depth + 1)
 						@proc._debug("include: 200 #{inc}")
 						break

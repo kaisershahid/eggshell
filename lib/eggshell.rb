@@ -229,14 +229,17 @@ module Eggshell
 		# its contents passed through until end of the tag
 		HTML_BLOCK = /^<(p|div|style|script|blockquote|pre)/
 		
+		# For lines starting with only these tags, accept as-is
+		HTML_PASSTHRU = /^\s*<(\/?(html|head|body)|[!?%])/
+		
 		# @param Boolean is_default If true, associates these parameters with the 
 		# `block_type` used in `get_block_param()` or explicitly in third parameter.
 		# @param String block_type
 		def set_block_params(params, is_default = false, block_type = nil)
-			@block_params[:pending] = params
 			if block_type && is_default
 				@block_params[block_type] = params
 			else
+				@block_params[:pending] = params
 				@block_param_default = is_default
 			end
 		end
@@ -255,7 +258,7 @@ module Eggshell
 				default = @block_params[block_type]
 				if default
 					default.each do |key,val|
-						if !bp.has_key?(key)
+						if !bp.has_key?(key) && val
 							bp[key] = val.clone
 						end
 					end
@@ -359,6 +362,7 @@ module Eggshell
 				end
 
 				# unescape escape
+				# @todo support more unescaping
 				line = line.gsub(/\\\\/, '\\')
 
 				# join this line with last line and terminate last line
@@ -371,7 +375,7 @@ module Eggshell
 				if line[0..1] == '!#'
 					next
 				end
-
+				
 				if block_handler_raw
 					stat = block_handler.collect(line, buff, indents, indent_level)
 					if stat != Eggshell::BlockHandler::COLLECT_RAW
@@ -383,6 +387,11 @@ module Eggshell
 							end
 						end
 					end
+					next
+				end
+				
+				if line.match(HTML_PASSTHRU)
+					buff << fmt_line(line)
 					next
 				end
 
@@ -409,7 +418,7 @@ module Eggshell
 					
 					# special case block parameter
 					if macro == '!'
-						set_block_params(args[0], args[1])
+						set_block_params(args[0], args[1], args[2])
 						next
 					end
 
@@ -462,9 +471,6 @@ module Eggshell
 					next
 				end
 
-				# @todo try to map indent to a block handler
-				next if line == ''
-
 				# html block processing
 				html = line.match(HTML_BLOCK)
 				if html
@@ -478,8 +484,13 @@ module Eggshell
 
 					next
 				elsif in_html
-					line = @vars['html.no_eval'] ? orig : expand_expr(orig)
-					buff << line
+					if line == ''
+						buff << line
+					else
+						line = @vars['html.no_eval'] ? orig : expand_expr(orig)
+						buff << line.rstrip
+					end
+
 					if line.match(end_html)
 						in_html = false
 						end_html = nil
@@ -487,6 +498,9 @@ module Eggshell
 					end
 					next
 				end
+
+				# @todo try to map indent to a block handler
+				next if line == ''
 
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
 				# two checks: block(params). ; block.
@@ -497,12 +511,14 @@ module Eggshell
 					idx1 = line.index(').', idx0)
 					if idx1
 						block_type = line[0..idx0-2]
-						params = line[idx0-1...idx1+1].strip
+						params = line[0...idx1+1].strip
 						line = line[idx1+2..line.length] || ''
 						if params != ''
 							struct = Eggshell::ExpressionEvaluator.struct(params)
-							args = expr_eval(struct)
-							set_block_params(args[0], args[1])
+							arg0 = struct[0][2][0]
+							arg1 = struct[0][2][1]
+							arg0 = expr_eval(arg0) if arg0
+							set_block_params(arg0, arg1)
 						end
 					end
 				else
