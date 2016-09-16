@@ -227,10 +227,15 @@ module Eggshell
 		
 		# html tags that have end-block checks. any block starting with one of these tags will have
 		# its contents passed through until end of the tag
-		HTML_BLOCK = /^<(p|div|style|script|blockquote|pre)/
+		# @todo what else should be treated?
+		HTML_BLOCK = /^<(style|script|table|dl|select|textarea|\!--|\?)/
+		HTML_BLOCK_END = {
+			'<!--' => '-->',
+			'<?' => '\\?>'
+		}.freeze
 		
 		# For lines starting with only these tags, accept as-is
-		HTML_PASSTHRU = /^\s*<(\/?(html|head|body)|[!?%])/
+		HTML_PASSTHRU = /^\s*<(\/?(html|head|meta|link|title|body|br))/
 		
 		# @param Boolean is_default If true, associates these parameters with the 
 		# `block_type` used in `get_block_param()` or explicitly in third parameter.
@@ -474,13 +479,14 @@ module Eggshell
 				# html block processing
 				html = line.match(HTML_BLOCK)
 				if html
-					end_html = "</#{html[1]}>$"
+					end_html = HTML_BLOCK_END["<#{html[1]}"]
+					end_html = "</#{html[1]}>$" if !end_html
 					if !line.match(end_html)
 						in_html = true
 					end
 
 					line = @vars['html.no_eval'] ? orig : expand_expr(orig)
-					buff << line
+					buff << line.rstrip
 
 					next
 				elsif in_html

@@ -3,6 +3,7 @@ class Eggshell::Bundles::Basics
 
 	def self.new_instance(proc, opts = nil)
 		BasicBlocks.new.set_processor(proc)
+		SectionBlocks.new.set_processor(proc)
 		InlineMacros.new.set_processor(proc)
 		BasicMacros.new.set_processor(proc)
 		ControlMacros.new.set_processor(proc)
@@ -21,35 +22,12 @@ class Eggshell::Bundles::Basics
 
 		def set_processor(proc)
 			@proc = proc
-			@proc.register_block(self, *%w(h1 h2 h3 h4 h5 h6 hr table pre p bq div raw # - / | >))
-			@header_list = []
+			@proc.register_block(self, *%w(table pre p bq div raw # - / | >))
 		end
 
 		def start(name, line, buffer, indents = '', indent_level = 0)
 			set_block_params(name)
 			bp = @block_params[name]
-
-			# @todo read block_param arguments
-			if name[0] == 'h'
-				if name == 'hr'
-					buffer << "<hr />"
-				else
-					lvl = name[1].to_i
-					clazz = bp['class'] || ''
-					style = bp['style'] || '' 
-					attrs = bp['attributes'] || []
-					abuff = []
-					attrs.each do |key,val|
-						abuff << "#{key}='#{val}'"
-					end
-					# @todo track id and header type for TOC
-					id = bp['id'] || line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
-					title = @proc.fmt_line(line)
-					buffer << "<#{name} id='#{id}' class='#{clazz}' style='#{style}' #{abuff.join(' ')}>#{title}</#{name}>"
-					@header_list << {:level => lvl, :id => id, :title => title}
-				end
-				return DONE
-			end
 
 			if name == '#' || name == '-'
 				@type = :list
@@ -332,6 +310,59 @@ class Eggshell::Bundles::Basics
 			buff << @proc.fmt_line(val)
 			buff << "</#{tag}>"
 			return buff.join('')
+		end
+	end
+	
+	# Handles blocks that deal with sectioning of content.
+	class SectionBlocks
+		include Eggshell::BlockHandler
+
+		def set_processor(proc)
+			@proc = proc
+			@proc.register_block(self, *%w(h1 h2 h3 h4 h5 h6 hr section end-section))
+			@header_list = []
+			@header_idx = {}
+		end
+
+		def start(name, line, buffer, indents = '', indent_level = 0)
+			set_block_params(name)
+			bp = @block_params[name]
+
+			if name[0] == 'h'
+				if name == 'hr'
+					buffer << "<hr />"
+				else
+					lvl = name[1].to_i
+					attrs = bp['attributes'] || {}
+					attrs['class'] = bp['class'] || ''
+					attrs['style'] = bp['style'] || ''
+
+					id = bp['id'] || line.downcase.strip.gsub(/[^a-z0-9_-]+/, '-')
+					lid = id
+					i = 1
+					while @header_idx[lid] != nil
+						lid = "#{id}-#{i}"
+						i += 1
+					end
+					id = lid
+					attrs['id'] = id
+					title = @proc.fmt_line(line)
+
+					buffer << "#{create_tag(name, attrs)}#{title}</#{name}>"
+
+					@header_list << {:level => lvl, :id => lid, :title => title}
+					@header_idx[lid] = @header_list.length - 1
+				end
+				return DONE
+			elsif name == 'section'
+				attrs = bp['attributes'] || {}
+				attrs['class'] = bp['class'] || ''
+				attrs['style'] = bp['style'] || ''
+				attrs['id'] = bp['id'] || ''
+				buffer << create_tag('section', attrs)
+			elsif name == 'end-section'
+				buffer << '</section>'
+			end
 		end
 	end
 	

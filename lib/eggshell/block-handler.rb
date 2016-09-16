@@ -22,6 +22,19 @@ module Eggshell::BlockHandler
 		@block_params = {} if !@block_params
 		@block_params[name] = @proc.get_block_params(name)
 	end
+	
+	def create_tag(tag, attribs, open = true)
+		# @todo escape val?
+		abuff = []
+		attribs.each do |key,val|
+			if val == nil
+				abuff << key
+			else
+				abuff << "#{key}='#{val}'"
+			end
+		end
+		"<#{tag} #{abuff.join(' ')}#{open ? '>' : '/>'}"
+	end
 
 	def start(name, line, buffer, indents = '', indent_level = 0)
 	end
