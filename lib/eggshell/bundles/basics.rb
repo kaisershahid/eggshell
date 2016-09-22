@@ -409,7 +409,6 @@ class Eggshell::Bundles::Basics
 						buffer << @toc_template[:section_end] if @toc_template[:section_end]
 					elsif entry.is_a?(Hash)
 						tpl = @toc_template[entry[:tag]] || @toc_template[:default]
-						$stderr.write ">> #{tpl}\n"
 						buffer << tpl.gsub('$id', entry[:id]).gsub('$title', entry[:title]).gsub('$level', entry[:level].to_s)
 					end
 				end
