@@ -479,6 +479,7 @@ module Eggshell
 				# html block processing
 				html = line.match(HTML_BLOCK)
 				if html
+					$stderr.write "!!! #{html}\n"
 					end_html = HTML_BLOCK_END["<#{html[1]}"]
 					end_html = "</#{html[1]}>$" if !end_html
 					if !line.match(end_html)

@@ -39,7 +39,7 @@ module Eggshell::BlockHandler
 	def start(name, line, buffer, indents = '', indent_level = 0)
 	end
 
-	def collect(line, buffer)
+	def collect(line, buffer, indents = '', indent_level = 0)
 	end
 
 	module Defaults

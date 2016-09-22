@@ -259,9 +259,13 @@ class Eggshell::Bundles::Basics
 				end_tag = ''
 				if @type != 'raw'
 					bp = @block_params[@type]
+					attrs = bp['attributes'] || {}
+					attrs['class'] = bp['class'] || ''
+					attrs['style'] = bp['style'] || ''
+					attrs['id'] = bp['id'] || ''
 					@type = 'blockquote' if @type == 'bq'
 					# @todo get attributes from block param
-					start_tag = "<#{@type} class='#{bp['class']}' style='#{bp['style']}'>"
+					start_tag = create_tag(@type, attrs)
 					end_tag = "</#{@type}>"
 					join = @type == 'pre' ? "" : "<br />\n"
 
@@ -314,12 +318,35 @@ class Eggshell::Bundles::Basics
 	end
 	
 	# Handles blocks that deal with sectioning of content.
+	<<-docblock
+	h1. Header 1
+	h2. Header 2
+	h3({class: 'header-3', id: 'custom-id'}). Header 3
+
+	section.
+	h1. Another Header 1 inside a section
+	end-section.
+
+	!# outputs a table of contents based on all headers accumulated
+	!# define the output of each header (or use 'default' as fallback)
+	toc.
+	start: <div class='toc'>
+	end: </div>
+	default: <div class='toc-$level'><a href='$id'>$title</a></div>
+	h4: <div class='toc-h4 special-exception'><a href='$id'>$title</a></div>
+	section: <div class='toc-section-wrap'>
+	section_end: </div>
+	docblock
 	class SectionBlocks
 		include Eggshell::BlockHandler
+		
+		TOC_TEMPLATE = {
+			:default => "<div class='toc-h$level'><a href='\#$id'>$title</a></div>"
+		}
 
 		def set_processor(proc)
 			@proc = proc
-			@proc.register_block(self, *%w(h1 h2 h3 h4 h5 h6 hr section end-section))
+			@proc.register_block(self, *%w(h1 h2 h3 h4 h5 h6 hr section end-section toc))
 			@header_list = []
 			@header_idx = {}
 		end
@@ -350,7 +377,7 @@ class Eggshell::Bundles::Basics
 
 					buffer << "#{create_tag(name, attrs)}#{title}</#{name}>"
 
-					@header_list << {:level => lvl, :id => lid, :title => title}
+					@header_list << {:level => lvl, :id => lid, :title => title, :tag => name}
 					@header_idx[lid] = @header_list.length - 1
 				end
 				return DONE
@@ -360,8 +387,38 @@ class Eggshell::Bundles::Basics
 				attrs['style'] = bp['style'] || ''
 				attrs['id'] = bp['id'] || ''
 				buffer << create_tag('section', attrs)
+				@header_list << name
+				return DONE
 			elsif name == 'end-section'
 				buffer << '</section>'
+				@header_list << name
+				return DONE
+			elsif name == 'toc'
+				@toc_template = TOC_TEMPLATE.clone
+				return COLLECT
+			end
+		end
+		
+		def collect(line, buffer, indents = '', indent_level = 0)
+			if line == '' || !line
+				buffer << @toc_template[:start] if @toc_template[:start]
+				@header_list.each do |entry|
+					if entry == 'section'
+						buffer << @toc_template[:section] if @toc_template[:section]
+					elsif entry == 'section_end'
+						buffer << @toc_template[:section_end] if @toc_template[:section_end]
+					elsif entry.is_a?(Hash)
+						tpl = @toc_template[entry[:tag]] || @toc_template[:default]
+						$stderr.write ">> #{tpl}\n"
+						buffer << tpl.gsub('$id', entry[:id]).gsub('$title', entry[:title]).gsub('$level', entry[:level].to_s)
+					end
+				end
+				buffer << @toc_template[:end] if @toc_template[:end]
+				return DONE
+			else
+				key, val = line.split(':', 2)
+				@toc_template[key.to_sym] = val
+				return COLLECT
 			end
 		end
 	end
