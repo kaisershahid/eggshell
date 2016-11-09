@@ -235,7 +235,7 @@ module Eggshell
 		}.freeze
 		
 		# For lines starting with only these tags, accept as-is
-		HTML_PASSTHRU = /^\s*<(\/?(html|head|meta|link|title|body|br))/
+		HTML_PASSTHRU = /^\s*<(\/?(html|head|meta|link|title|body|br|section|div|blockquote|p))/
 		
 		# @param Boolean is_default If true, associates these parameters with the 
 		# `block_type` used in `get_block_param()` or explicitly in third parameter.
@@ -396,6 +396,10 @@ module Eggshell
 				end
 				
 				if line.match(HTML_PASSTHRU)
+					if block_handler
+						block_handler.collect(nil, buff)
+						block_handler = nil
+					end
 					buff << fmt_line(line)
 					next
 				end
@@ -479,7 +483,6 @@ module Eggshell
 				# html block processing
 				html = line.match(HTML_BLOCK)
 				if html
-					$stderr.write "!!! #{html}\n"
 					end_html = HTML_BLOCK_END["<#{html[1]}"]
 					end_html = "</#{html[1]}>$" if !end_html
 					if !line.match(end_html)
@@ -508,6 +511,8 @@ module Eggshell
 
 				# @todo try to map indent to a block handler
 				next if line == ''
+				
+				
 
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
 				# two checks: block(params). ; block.
@@ -554,6 +559,8 @@ module Eggshell
 					line = nil
 				end
 			end
+
+			#$stderr.write "last line: #{line}\n"
 
 			if block_handler
 				block_handler.collect(line, buff, indents, indent_level) if line

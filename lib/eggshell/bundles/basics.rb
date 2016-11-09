@@ -475,6 +475,9 @@ class Eggshell::Bundles::Basics
 				text = nil
 				if link == ''
 					text = ''
+				elsif link.index('; ') == nil
+					textpart = link
+					args.unshift('href:'+ link);
 				else
 					textpart, link = link.split('; ')
 					link = '' if !link
@@ -486,7 +489,7 @@ class Eggshell::Bundles::Basics
 				textpart = nil
 			end
 			
-			buffer << restructure_html(tag, textpart, args)
+			buffer << restructure_html(tag, textpart ? textpart.strip : textpart, args)
 		end
 		
 		def restructure_html(tag, text, attributes = [])
