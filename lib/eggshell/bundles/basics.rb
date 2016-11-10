@@ -464,7 +464,7 @@ class Eggshell::Bundles::Basics
 			when '[^'
 				tag = 'sup'
 			when '[.'
-				tag = 'sup'
+				tag = 'sub'
 			when '[*'
 				tag = macname == '[**' ? 'strong' : 'b'
 			when '[/'
@@ -475,7 +475,7 @@ class Eggshell::Bundles::Basics
 				tag = 'u'
 			when '[~'
 				tag = 'a'
-				link = textpart
+				link = textpart ? textpart.strip : textpart
 				text = nil
 				if link == ''
 					text = ''

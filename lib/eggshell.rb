@@ -650,16 +650,13 @@ module Eggshell
 					cd = false
 				elsif bt || cd
 					buff << html_escape(expand_expr(part))
-				elsif (part[0] == '[' && part.match(INLINE_MARKUP_REGEX_OP)) || part == '/^' || part == '/_'
-					
+				elsif (part[0] == '[' && part.match(INLINE_MARKUP_REGEX_OP))
 					# parse OP + {term or '|'}* + DELIM
 					inline_op = part
 					i = expand_macro_brackets(inline_op, i, toks, buff)
 					inline_op = nil
 				else
-					# @todo move this into inline macro realm
-					part = part.gsub(/(\[\*{1,2}|\*{1,2}\]|\[_{1,2}|_{1,2}\]|\[-_?|_?-\])/, HASH_FMT_DECORATORS)
-					buff << part
+				 	buff << part
 				end
 			end
 			# if inline_op
@@ -690,7 +687,13 @@ module Eggshell
 					i = expand_macro_brackets(part, i, toks, buff)
 					inline_part = '' if !inline_part
 					inline_part += buff.pop
-				elsif part == inline_delim
+				elsif part.end_with?(inline_delim) || part.end_with?('/]')
+					# in the case where a special char immediately precedes end delimiter, move it on to
+					# the inline body (e.g. `[//emphasis.//]` or `[*bold.*]`)
+					len = part.end_with?(inline_delim) ? inline_delim.length : 2
+					if part.length > len
+						inline_part += part[0...-len]
+					end
 					break
 				elsif part == '|'
 					inline_args << inline_part
