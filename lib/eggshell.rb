@@ -237,6 +237,13 @@ module Eggshell
 		# For lines starting with only these tags, accept as-is
 		HTML_PASSTHRU = /^\s*<(\/?(html|head|meta|link|title|body|br|section|div|blockquote|p))/
 		
+		HASH_LINE_ESCAPE = {
+			"\\n" => "\n",
+			"\\r" => "\r",
+			"\\t" => "\t",
+			"\\\\" => "\\"
+		}
+		
 		# @param Boolean is_default If true, associates these parameters with the 
 		# `block_type` used in `get_block_param()` or explicitly in third parameter.
 		# @param String block_type
@@ -342,10 +349,10 @@ module Eggshell
 				if line.length < oline.length
 					line_end = oline[line.length..-1]
 				end
-
+				
 				# if line end in \, buffer and continue to next line;
 				# join buffered line once \ no longer at end
-				if line[-1] == '\\'
+				if line[-1] == '\\' && line.length > 1
 					if line[-2] != '\\'
 						# special case: if a line consists of a single \, assume line ending is wanted,
 						# otherwise join directly with previous line
@@ -366,9 +373,8 @@ module Eggshell
 					end
 				end
 
-				# unescape escape
-				# @todo support more unescaping
-				line = line.gsub(/\\\\/, '\\')
+				# unescape the escape sequences
+				line = line.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE)
 
 				# join this line with last line and terminate last line
 				if ext_line
@@ -511,8 +517,6 @@ module Eggshell
 
 				# @todo try to map indent to a block handler
 				next if line == ''
-				
-				
 
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
 				# two checks: block(params). ; block.

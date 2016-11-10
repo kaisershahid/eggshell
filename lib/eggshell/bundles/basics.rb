@@ -75,7 +75,8 @@ class Eggshell::Bundles::Basics
 
 		def do_list(line, buff, indents = '', indent_level = 0)
 			ret = COLLECT
-			if line && (line[0] == '#' || line[0] == '-')
+			lstrip = line.lstrip
+			if line && (lstrip[0] == '#' || lstrip[0] == '-')
 				@lines << [line, indent_level]
 			else
 				# if non-empty line, reprocess this line but process buffer
@@ -86,7 +87,7 @@ class Eggshell::Bundles::Basics
 				@lines.each do |pair|
 					line = pair[0]
 					indent = pair[1]
-					type = line[0] == '-' ? 'ul' : 'ol'
+					type = lstrip[0] == '-' ? 'ul' : 'ol'
 					if order_stack.length == 0
 						order_stack << "<#{type}>"
 						otype_stack << type
@@ -250,6 +251,7 @@ class Eggshell::Bundles::Basics
 					end
 				end
 			else
+				line = " " if line == '\\'
 				blank = line == ''
 			end
 
@@ -401,18 +403,20 @@ class Eggshell::Bundles::Basics
 		
 		def collect(line, buffer, indents = '', indent_level = 0)
 			if line == '' || !line
-				buffer << @toc_template[:start] if @toc_template[:start]
+				buffer << @proc.fmt_line(@toc_template[:start]) if @toc_template[:start]
 				@header_list.each do |entry|
 					if entry == 'section'
-						buffer << @toc_template[:section] if @toc_template[:section]
+						buffer << @proc.fmt_line(@toc_template[:section]) if @toc_template[:section]
 					elsif entry == 'section_end'
-						buffer << @toc_template[:section_end] if @toc_template[:section_end]
+						buffer << @proc.fmt_line(@toc_template[:section_end]) if @toc_template[:section_end]
 					elsif entry.is_a?(Hash)
 						tpl = @toc_template[entry[:tag]] || @toc_template[:default]
-						buffer << tpl.gsub('$id', entry[:id]).gsub('$title', entry[:title]).gsub('$level', entry[:level].to_s)
+						buffer << @proc.fmt_line(
+							tpl.gsub('$id', entry[:id]).gsub('$title', entry[:title]).gsub('$level', entry[:level].to_s)
+						)
 					end
 				end
-				buffer << @toc_template[:end] if @toc_template[:end]
+				buffer << @proc.fmt_line(@toc_template[:end]) if @toc_template[:end]
 				return DONE
 			else
 				key, val = line.split(':', 2)
