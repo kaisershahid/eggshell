@@ -53,9 +53,8 @@ class Eggshell::Bundles::Basics
 			if line.index(name) == 0
 				line = line.lstrip
 			end
-			@lines = [@type == 'raw' ? line : @proc.fmt_line(line)]
-
-			return COLLECT
+			@lines = [line]
+			return @type == 'raw' ? COLLECT_RAW : COLLECT
 		end
 
 		def collect(line, buff, indents = '', indent_level = 0)
@@ -130,7 +129,7 @@ class Eggshell::Bundles::Basics
 				@lines << line
 			else
 				ret = (line[0] != '\\' && line != '') ? RETRY : DONE
-				map = @block_params['table']
+				map = @block_params['table'] || {}
 				tbl_class = map['class'] || ''
 				tbl_style = map['style'] || ''
 				tbl_attrib = ''
@@ -259,6 +258,7 @@ class Eggshell::Bundles::Basics
 				@lines.delete('')
 				start_tag = ''
 				end_tag = ''
+				content = ''
 				if @type != 'raw'
 					bp = @block_params[@type]
 					attrs = bp['attributes'] || {}
@@ -271,14 +271,16 @@ class Eggshell::Bundles::Basics
 					end_tag = "</#{@type}>"
 					join = @type == 'pre' ? "" : "<br />\n"
 
-					buff << "#{start_tag}#{@lines.join(join)}#{end_tag}"
+					content = @proc.fmt_line("#{start_tag}#{@lines.join(join)}#{end_tag}")
 				else
-					buff << @lines.join("\n")
+					content = @proc.expand_expr(@lines.join("\n"))
 				end
+
+				buff << content
 				@lines = []
 				ret = DONE
 			else
-				line = !nofmt ? @proc.fmt_line(line) : @proc.expand_expr(line)
+				#line = !nofmt ? @proc.fmt_line(line) : @proc.expand_expr(line)
 				@lines << line
 				ret = raw ? COLLECT_RAW : COLLECT
 			end
@@ -654,6 +656,7 @@ class Eggshell::Bundles::Basics
 				st[:item] = p0['item'] || 'item'
 				st[:counter] = p0['counter'] || 'counter'
 				st[:raw]  = p0['raw'] # @todo inherit if not set?
+				st[:collect] = p0['collect']
 
 				mbuff = []
 				looper = nil
@@ -673,6 +676,7 @@ class Eggshell::Bundles::Basics
 					end
 				end
 
+				collector = []
 				if looper
 					counter = 0
 					looper.each do |i1, i2|
@@ -687,10 +691,33 @@ class Eggshell::Bundles::Basics
 						end
 
 						@proc.vars[st[:item]] = val.is_a?(Array) && val[0].is_a?(Symbol) ? @proc.expr_eval(val) : val
-						process_lines(lines, buffer, depth + 1, st[:raw])
+						# divert lines to collector
+						if st[:collect]
+							lines.each do |_line|
+								if _line.is_a?(String)
+									collector << @proc.expand_expr(_line)
+								elsif _line.is_a?(Eggshell::Block)
+									_line.process(collector)
+								end
+							end
+						else
+							process_lines(lines, buffer, depth + 1, st[:raw])
+						end
 						break if st[:break]
 
 						counter += 1
+					end
+				end
+				
+				if collector.length > 0
+					# process collected lines as an aggregated set of blocks
+					if st[:collect] == 'aggregate'
+						if p0['aggregate_block']
+							collector[0] = p0['aggregate_block'] + collector[0]
+						end
+						process_lines(collector, buffer, depth + 1, false)
+					else
+						buffer << collector.join("\n")
 					end
 				end
 

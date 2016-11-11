@@ -1,5 +1,19 @@
 # Eggshell.
 module Eggshell
+	# Encapsulates a line with indents and indent level in separate fields.
+	# Useful when macros need to have original indent context.
+	class Line
+		def initialize(line, indents, indent_level)
+			@line = line
+			@indents = indents
+			@indent_level = indent_level
+		end
+		attr_reader :line, :indents, :indent_level
+
+		def to_s
+			line
+		end
+	end
 	# For complex nested content, use the block to execute content correctly.
 	# Quick examples: nested loops, conditional statements.
 	class Block
@@ -140,7 +154,7 @@ module Eggshell
 			exp = false
 			mac = false
 
-			toks = expr.split(/(\\|\$\{|\}|@@|"|')/)
+			toks = expr.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE).split(/(\\|\$\{|\}|@@|"|')/)
 			i = 0
 
 			plain_str = ''
@@ -235,7 +249,7 @@ module Eggshell
 		}.freeze
 		
 		# For lines starting with only these tags, accept as-is
-		HTML_PASSTHRU = /^\s*<(\/?(html|head|meta|link|title|body|br|section|div|blockquote|p))/
+		HTML_PASSTHRU = /^\s*<(\/?(html|head|meta|link|title|body|br|section|div|blockquote|p|pre))/
 		
 		HASH_LINE_ESCAPE = {
 			"\\n" => "\n",
@@ -302,6 +316,7 @@ module Eggshell
 
 			block_handler = nil
 			block_handler_raw = false
+			block_handler_indent = 0
 
 			i = 0
 
@@ -332,14 +347,21 @@ module Eggshell
 				oline = line
 
 				# @todo configurable space tab?
+				offset = 0
+				tablen = 0
 				if line[0] == TAB || line[0..3] == TAB_SPACE
 					tab = line[0] == TAB ? TAB : TAB_SPACE
+					tablen = tab.length
 					indent_level += 1
-					offset = tab.length
-					while line[offset...offset+tab.length] == tab
+					offset = tablen
+					while line[offset...offset+tablen] == tab
 						indent_level += 1
-						offset += tab.length
+						offset += tablen
 					end
+					# if block_handler_indent > 0
+					# 	indent_level -= block_handler_indent
+					# 	offset -= (tablen * block_handler_indent)
+					# end
 					indents = line[0...offset]
 					line = line[offset..-1]
 				end
@@ -374,7 +396,8 @@ module Eggshell
 				end
 
 				# unescape the escape sequences
-				line = line.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE)
+				# @todo move this somewhere more global, so that escaped tabs at start don't skew indent checking
+				#line = line.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE)
 
 				# join this line with last line and terminate last line
 				if ext_line
@@ -386,9 +409,14 @@ module Eggshell
 				if line[0..1] == '!#'
 					next
 				end
-				
+
+				# relative indenting				
+				if block_handler_indent > 0
+					indents = indents[(tablen*block_handler_indent)..-1]
+				end
+
 				if block_handler_raw
-					stat = block_handler.collect(line, buff, indents, indent_level)
+					stat = block_handler.collect(line, buff, indents, indent_level - block_handler_indent)
 					if stat != Eggshell::BlockHandler::COLLECT_RAW
 						block_handler_raw = false
 						if stat != Eggshell::BlockHandler::COLLECT
@@ -398,15 +426,6 @@ module Eggshell
 							end
 						end
 					end
-					next
-				end
-				
-				if line.match(HTML_PASSTHRU)
-					if block_handler
-						block_handler.collect(nil, buff)
-						block_handler = nil
-					end
-					buff << fmt_line(line)
 					next
 				end
 
@@ -431,7 +450,7 @@ module Eggshell
 						macro = line[1..line.length]
 					end
 					
-					# special case block parameter
+					# special case: block parameter
 					if macro == '!'
 						set_block_params(args[0], args[1], args[2])
 						next
@@ -465,13 +484,13 @@ module Eggshell
 							block = nil
 						end
 					else
-						block.cur.collect(oline)
+						block.cur.collect(orig.rstrip)
 					end
 					next
 				end
 
 				if block_handler
-					stat = block_handler.collect(line, buff, indents, indent_level)
+					stat = block_handler.collect(line, buff, indents, indent_level - block_handler_indent)
 
 					if stat == Eggshell::BlockHandler::COLLECT_RAW
 						block_handler_raw = true
@@ -483,6 +502,15 @@ module Eggshell
 						end
 					end
 					line = nil
+					next
+				end
+
+				if line.match(HTML_PASSTHRU)
+					if block_handler
+						block_handler.collect(nil, buff)
+						block_handler = nil
+					end
+					buff << fmt_line(line)
 					next
 				end
 
@@ -519,7 +547,7 @@ module Eggshell
 				next if line == ''
 
 				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
-				# two checks: block(params). ; block.
+				# two checks: `block(params).`; `block.`
 				block_type = nil
 				bt = line.match(BLOCK_MATCH_PARAMS)
 				if bt
@@ -549,12 +577,14 @@ module Eggshell
 					end
 				end
 				block_type = 'p' if !block_type
-
+				block_handler_indent = indent_level
 				block_handler = @blocks[block_type]
 				block_handler = @noop_block if !block_handler 
 				stat = block_handler.start(block_type, line, buff, indents, indent_level)
 				# block handler won't continue to next line; clear and possibly retry
-				if stat != Eggshell::BlockHandler::COLLECT
+				if stat == Eggshell::BlockHandler::COLLECT_RAW
+					block_handler_raw = true
+				elsif stat != Eggshell::BlockHandler::COLLECT
 					block_handler = nil
 					if stat == Eggshell::BlockHandler::RETRY
 						i -= 1
@@ -567,7 +597,7 @@ module Eggshell
 			#$stderr.write "last line: #{line}\n"
 
 			if block_handler
-				block_handler.collect(line, buff, indents, indent_level) if line
+				block_handler.collect(line, buff, indents, indent_level - block_handler_indent) if line
 				block_handler.collect(nil, buff)
 			end
 
@@ -629,7 +659,7 @@ module Eggshell
 			# split and preserve delimiters: ` {{ }} [[ ]]
 			# - preserve contents of code blocks (only replacing unescaped placeholder values)
 			## - handle anchor and image
-			toks = expr.split(INLINE_MARKUP)
+			toks = expr.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE).split(INLINE_MARKUP)
 			i = 0
 			while i < toks.length
 				part = toks[i]
@@ -705,8 +735,12 @@ module Eggshell
 			end
 
 			inline_args << inline_part if inline_part
-			@macros[inline_op].process(buff, inline_op, inline_args, nil, nil)
-			
+			if @macros[inline_op]
+				@macros[inline_op].process(buff, inline_op, inline_args, nil, nil)
+			else
+				buff << "#{inline_op}#{inline_args.join('|')}#{inline_delim}"
+			end
+
 			return i
 		end
 	end
