@@ -371,7 +371,7 @@ module Eggshell
 				if line.length < oline.length
 					line_end = oline[line.length..-1]
 				end
-				
+
 				# if line end in \, buffer and continue to next line;
 				# join buffered line once \ no longer at end
 				if line[-1] == '\\' && line.length > 1
@@ -394,10 +394,6 @@ module Eggshell
 						line = line[0..-2]
 					end
 				end
-
-				# unescape the escape sequences
-				# @todo move this somewhere more global, so that escaped tabs at start don't skew indent checking
-				#line = line.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE)
 
 				# join this line with last line and terminate last line
 				if ext_line
@@ -576,11 +572,13 @@ module Eggshell
 						block_type = nil
 					end
 				end
+
+
 				block_type = 'p' if !block_type
 				block_handler_indent = indent_level
 				block_handler = @blocks[block_type]
 				block_handler = @noop_block if !block_handler 
-				stat = block_handler.start(block_type, line, buff, indents, indent_level)
+				stat = block_handler.start(block_type, line.lstrip, buff, indents, indent_level)
 				# block handler won't continue to next line; clear and possibly retry
 				if stat == Eggshell::BlockHandler::COLLECT_RAW
 					block_handler_raw = true

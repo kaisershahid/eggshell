@@ -22,16 +22,18 @@ class Eggshell::Bundles::Basics
 
 		def set_processor(proc)
 			@proc = proc
-			@proc.register_block(self, *%w(table pre p bq div raw # - / | >))
+			@proc.register_block(self, *%w(table pre p bq div raw ol ul # - / | >))
 		end
 
 		def start(name, line, buffer, indents = '', indent_level = 0)
 			set_block_params(name)
 			bp = @block_params[name]
 
-			if name == '#' || name == '-'
+			if name == '#' || name == '-' || name == 'ol' || name == 'li'
 				@type = :list
-				@lines = [[line, indent_level]]
+				@lines = []
+				@lines << [line, indent_level, name == '#' ? 'ol' : 'ul'] if name == '#' || name == '-'
+				@indent_start = indent_level
 				return COLLECT
 			end
 
@@ -76,17 +78,17 @@ class Eggshell::Bundles::Basics
 			ret = COLLECT
 			lstrip = line.lstrip
 			if line && (lstrip[0] == '#' || lstrip[0] == '-')
-				@lines << [line, indent_level]
+				@lines << [line[1..-1].strip, indent_level+@indent_start, lstrip[0] == '#' ? 'ol' : 'ul']
 			else
-				# if non-empty line, reprocess this line but process buffer
+				# if non-empty line, reprocess this line but also process buffer
 				ret = (line && line != '') ? RETRY : DONE
 				order_stack = []
 				otype_stack = []
 				last = nil
-				@lines.each do |pair|
-					line = pair[0]
-					indent = pair[1]
-					type = lstrip[0] == '-' ? 'ul' : 'ol'
+				@lines.each do |tuple|
+					line, indent, type = tuple
+					# normalize indent
+					indent -= @indent_start
 					if order_stack.length == 0
 						order_stack << "<#{type}>"
 						otype_stack << type
@@ -107,7 +109,7 @@ class Eggshell::Bundles::Basics
 							count -= 1
 						end
 					end
-					order_stack << "#{"\t"*indent}<li>#{@proc.fmt_line(line[1...line.length].strip)}</li>"
+					order_stack << "#{"\t"*indent}<li>#{@proc.fmt_line(line)}</li>"
 				end
 
 				# close nested lists
@@ -657,6 +659,7 @@ class Eggshell::Bundles::Basics
 				st[:counter] = p0['counter'] || 'counter'
 				st[:raw]  = p0['raw'] # @todo inherit if not set?
 				st[:collect] = p0['collect']
+				st[:agg_block] = p0['aggregate_block']
 
 				mbuff = []
 				looper = nil
@@ -690,6 +693,7 @@ class Eggshell::Bundles::Basics
 							@proc.vars[st[:counter]] = counter
 						end
 
+						# inject value into :item -- if it's an expression, evaluate first
 						@proc.vars[st[:item]] = val.is_a?(Array) && val[0].is_a?(Symbol) ? @proc.expr_eval(val) : val
 						# divert lines to collector
 						if st[:collect]
@@ -709,11 +713,11 @@ class Eggshell::Bundles::Basics
 					end
 				end
 				
+				# since there are lines here, process collected as an aggregated set of blocks
 				if collector.length > 0
-					# process collected lines as an aggregated set of blocks
 					if st[:collect] == 'aggregate'
-						if p0['aggregate_block']
-							collector[0] = p0['aggregate_block'] + collector[0]
+						if st[:agg_block]
+							collector.unshift(st[:agg_block])
 						end
 						process_lines(collector, buffer, depth + 1, false)
 					else

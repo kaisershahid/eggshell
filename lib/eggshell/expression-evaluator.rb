@@ -470,6 +470,7 @@ class Eggshell::ExpressionEvaluator
 			elsif tok.strip != ''
 				term = term ? term + tok : tok
 			elsif tok != '' && term
+				next if tok.strip == '' && last_state == :quote
 				if state[d] == :op
 					if ptr[-1] == nil
 						# @throw exception
