@@ -29,7 +29,7 @@ class Eggshell::Bundles::Basics
 			set_block_params(name)
 			bp = @block_params[name]
 
-			if name == '#' || name == '-' || name == 'ol' || name == 'li'
+			if name == '#' || name == '-' || name == 'ol' || name == 'ul'
 				@type = :list
 				@lines = []
 				@lines << [line, indent_level, name == '#' ? 'ol' : 'ul'] if name == '#' || name == '-'
@@ -55,7 +55,7 @@ class Eggshell::Bundles::Basics
 			if line.index(name) == 0
 				line = line.lstrip
 			end
-			@lines = [line]
+			@lines = [@type == 'raw' ? @proc.expand_expr(line) : @proc.fmt_line(line)]
 			return @type == 'raw' ? COLLECT_RAW : COLLECT
 		end
 
@@ -273,16 +273,16 @@ class Eggshell::Bundles::Basics
 					end_tag = "</#{@type}>"
 					join = @type == 'pre' ? "" : "<br />\n"
 
-					content = @proc.fmt_line("#{start_tag}#{@lines.join(join)}#{end_tag}")
+					content = "#{start_tag}#{@lines.join(join)}#{end_tag}"
 				else
-					content = @proc.expand_expr(@lines.join("\n"))
+					content = @lines.join("\n")
 				end
 
 				buff << content
 				@lines = []
 				ret = DONE
 			else
-				#line = !nofmt ? @proc.fmt_line(line) : @proc.expand_expr(line)
+				line = !nofmt ? @proc.fmt_line(line) : @proc.expand_expr(line)
 				@lines << line
 				ret = raw ? COLLECT_RAW : COLLECT
 			end

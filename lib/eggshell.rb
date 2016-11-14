@@ -154,7 +154,7 @@ module Eggshell
 			exp = false
 			mac = false
 
-			toks = expr.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE).split(/(\\|\$\{|\}|@@|"|')/)
+			toks = expr.gsub(/\\[trn]/, HASH_LINE_ESCAPE).split(/(\\|\$\{|\}|@@|"|')/)
 			i = 0
 
 			plain_str = ''
@@ -640,10 +640,8 @@ module Eggshell
 		def fmt_line(expr)
 			buff = []
 			bt = false
-			br = 0
 			cd = false
-			an = false
-			im = false
+			esc = false
 
 			macro = false
 			macro_buff = ''
@@ -657,12 +655,21 @@ module Eggshell
 			# split and preserve delimiters: ` {{ }} [[ ]]
 			# - preserve contents of code blocks (only replacing unescaped placeholder values)
 			## - handle anchor and image
-			toks = expr.gsub(/\\[\\trn]/, HASH_LINE_ESCAPE).split(INLINE_MARKUP)
+			toks = expr.gsub(/\\[trn]/, HASH_LINE_ESCAPE).split(INLINE_MARKUP)
 			i = 0
+
 			while i < toks.length
 				part = toks[i]
-				i+= 1
-				if part == '`' && !cd
+				i += 1
+				next if part == ''
+
+				if esc
+					buff << '\\' if part == '\\' || part[0..1] == '${'
+					buff << part
+					esc = false
+				elsif part == '\\'
+					esc = true
+				elsif part == '`' && !cd
 					if !bt
 						bt = true
 						buff << "<code class='tick'>"
