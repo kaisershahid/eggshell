@@ -18,6 +18,7 @@
 # # function calls
 # fn1(arg1, "arg2", 3) + fn2({}, [])
 # /pre
+require 'json'
 class Eggshell::ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
 	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
@@ -337,6 +338,7 @@ class Eggshell::ExpressionEvaluator
 				state << :op
 				last_state = :op
 				d += 1
+				#$stderr.write "ops: term=#{term}\n"
 				if term
 					if ptr.length == 0
 						ptr << [:op, tok, term_val(term), nil]
@@ -348,6 +350,7 @@ class Eggshell::ExpressionEvaluator
 						ptr << [:op, tok, last, term_val(term, last_state == :quote)]
 					end
 				else
+					#$stderr.write "ops: ptr=#{ptr.inspect}\n"
 					if ptr.length > 0
 						frag = ptr.pop
 						# preserve nested expression
@@ -356,13 +359,17 @@ class Eggshell::ExpressionEvaluator
 							frag[3] = [:op, tok, nested, nil]
 							ptr << frag
 						else
+							#$stderr.write "op: preced: #{frag}\n"
+							is_arr = frag.is_a?(Array)
 							op_precedence(tok, frag, ptr) # term_val(frag, last_state == :quote)
+							#$stderr.write "\top: preced: #{ptr.inspect}\n"
 						end
 					end
 				end
 			elsif tok == '('
 				if term
-					term = [:fn, term, []]
+					arr = []
+					term = [:fn, term, arr]
 					if state[d] != :map
 						ptr << term
 					else
@@ -374,7 +381,6 @@ class Eggshell::ExpressionEvaluator
 
 					state << :fnop
 					d += 1
-					arr = []
 					stack << arr
 					ptr = arr
 				else
@@ -391,6 +397,8 @@ class Eggshell::ExpressionEvaluator
 					d -= 1
 				end
 
+				#$stderr.write "pclose: #{state.inspect}\n"
+				#$stderr.write "pclose: #{stack.inspect}\n"
 				lstate = state.pop
 				lstack = stack.pop
 				ptr = stack[-1]
@@ -398,8 +406,11 @@ class Eggshell::ExpressionEvaluator
 
 				if lstate == :op
 					term = term_val(term, last_state == :quote) if term
-					frag = lstack[0]
-					frag[3] = term
+					# @question: does this hold? test case that revealed bug: `@=('var', 1 +2)`
+					frag = state[-1] == :fnop ? lstack[-1] : lstack[0]
+					#$stderr.write "\tterm=#{term}\n\tlstack=#{lstack.inspect}\n\tfrag=#{frag.inspect}\n\tptr=#{ptr.inspect}\n***\n"
+					op_insert(frag, term)
+					#$stderr.write "\tfrag.2=#{frag.inspect}\n"
 					op_insert(ptr[-1], frag)
 
 					term = nil
@@ -654,6 +665,10 @@ class Eggshell::ExpressionEvaluator
 					end
 				elsif frag[0] == :var
 					ret = retrieve_var(frag[1], vtable)
+					if ret.is_a?(Array) && ret[0].is_a?(Symbol)
+						ret = expr_eval(ret, vtable, ftable)
+					end
+					#$stderr.write "var => #{ret.inspect}"
 				end
 			end
 		else
