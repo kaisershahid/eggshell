@@ -41,6 +41,10 @@ module Eggshell::BlockHandler
 
 	def collect(line, buffer, indents = '', indent_level = 0)
 	end
+	
+	# For exception handling, optional information to provide context about error
+	def offsets
+	end
 
 	module Defaults
 		class NoOpHandler

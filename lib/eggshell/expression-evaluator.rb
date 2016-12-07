@@ -18,10 +18,11 @@
 # # function calls
 # fn1(arg1, "arg2", 3) + fn2({}, [])
 # /pre
-require 'json'
+module Eggshell;end
 class Eggshell::ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
 	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
+	REGEX_OPERATORS = /\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/
 
 	LOG_OP = 2
 	LOG_LEVEL = 0
@@ -96,7 +97,7 @@ class Eggshell::ExpressionEvaluator
 			self[key] = term
 		end
 	end
-
+	
 	# Normalizes a term.
 	# @param Object term If `String`, attempts to infer type (either `Fixnum`, `Float`, or `[:var, varname]`)
 	# @param Boolean preserve_str If true and input is string but not number, return string literal.
@@ -104,9 +105,9 @@ class Eggshell::ExpressionEvaluator
 		if term.is_a?(String)
 			if preserve_str
 				return term
-			elsif term.match(/^\d+$/)
+			elsif term.match(/^-?\d+$/)
 				return term.to_i
-			elsif term.match(/^\d*\.\d+$/)
+			elsif term.match(/^-?\d*\.\d+$/)
 				return term.to_f
 			elsif term == 'null' || term == 'nil'
 				return nil
@@ -116,7 +117,11 @@ class Eggshell::ExpressionEvaluator
 				return false
 			end
 
-			return [:var, term]
+			if term[0] == '-'
+				return [:op, '-', 0, [:var, term[1..-1]], :group]
+			else
+				return [:var, term]
+			end
 		end
 		return term
 	end
@@ -138,11 +143,13 @@ class Eggshell::ExpressionEvaluator
 	def self.op_precedence(nop, frag, stack)
 		topfrag = frag
 		lptr = topfrag
+		errs "op_precedence: frag=#{frag.inspect}", 1
 
 		# retrieve the right-most operand
 		# lptr = [opB, [opA, left, right], [opC, left, right]]
 		# frag = [opC, left, right]
-		while frag[3].is_a?(Array) && frag[3][0] == :op
+		# @todo look out for :nested in [4]?
+		while frag[3].is_a?(Array) && frag[3][0] == :op && frag[3][-1] != :group
 			lptr = frag
 			frag = frag[3]
 		end
@@ -151,6 +158,7 @@ class Eggshell::ExpressionEvaluator
 			oop = frag[1]
 			p0 = OP_PRECEDENCE[oop]
 			p1 = OP_PRECEDENCE[nop]
+			errs "op_precedence:   #{oop} (#{p0}) vs #{nop} (#{p1})", 0
 
 			if p0 > p1
 				# preserve previous fragment and make as left term of new op
@@ -168,53 +176,20 @@ class Eggshell::ExpressionEvaluator
 		end
 	end
 
-	# When terminating ternary operation, take the two fragments from deepest stack
-	# and place them as the ternary values. The ternary fragment is assumed to be
-	# the last element on the n-1 stack. Example:
-	#
-	# pre.
-	# 	[
-	# 		[ [:op_tern, [:op, '==', 1, 2], nil, nil] ],
-	# 		[ [true, false] ]
-	# 	]
-	# 	becomes ...
-	# 	[
-	# 		[ [:op_tern, [:op, '==', 1, 2], true, false] ]
-	# 	]
-	def self.op_tern_push(stack)
-		ops = stack.pop
-		ptr = stack[-1]
-		ptr[-1][2] = ops[0]
-		ptr[-1][3] = ops[1]
-	end
-
-	def self._trace(msg, lvl = 0)
-	end
-
-	# Converts a string expression into a tree structure that can be evaluated later.
-	#
-	# The root of the tree is an array. Each element can be one of the following terms:
-	#
-	# # String: `[:str, 'string']`
-	# # Numbers and Booleans: `5, true, false, 3.14`
-	# # Variable reference: `[:var, 'varname']`
-	# # Function call: `[:fn, 'function-name', [term0, term1, ...]]`
-	# # Operation: `[:op, left-term, right-term]`
-	# # Array or Map: note that an explicit array's first element will never be a symbol,\
-	# differentiating it from the other structures.
-	#
-	# Note that `args` is an array of any valid term.
 	def self.struct(str)
+		errs "struct parse: #{str}", 9
 		toks = str.split(REGEX_EXPR_STATEMENT)
+		char_pos = 0
 		state = [:nil]
 		last_state = nil
 		d = 0
 
 		# each element on the stack points to a nested level (so root is 0, first parenthesis is 1, second is 2, etc.)
 		# ptr points to the deepest level
-		stack = [[]]
+		stack = [ [] ]
 		ptr = stack[0]
 		term = nil
+		term_state = nil
 
 		quote_delim = nil
 
@@ -223,313 +198,314 @@ class Eggshell::ExpressionEvaluator
 		last_key = []
 
 		i = 0
+		toks.delete('')
+
+		# push a new operator or a term onto the stack
+		_op_push = lambda {|operator|
+			errs "_op_push: #{operator} (term=#{term}) (ptr[-1]=#{ptr[-1].inspect})", 1
+			if term
+				# check what the last item is. 
+				frag = ptr.pop
+				term = term_val(term, term_state == :quote)
+				if frag.is_a?(Array) && frag[0] == :op
+					op_insert(frag, term)
+					if operator
+						op_precedence(operator, frag, ptr)
+					else
+						ptr << frag
+					end
+				else
+					ptr << frag if frag
+					ptr << [:op, operator, term, nil]
+				end
+
+				errs ">> state=#{state.inspect}, stack=#{stack.inspect}", 0
+				errs ">> frag=#{frag.inspect}", 0
+				term = nil
+				term_state = nil
+			elsif operator
+				# no term, so pushing operator. either generate new operator fragment or put in precedence order
+				frag = ptr.pop
+				if frag.is_a?(Array)
+					if frag[0] == :op
+						# preserve parenthesized group
+						if frag[4] == :group
+							ptr << [:op, operator, frag, nil]
+						else
+							op_precedence(operator, frag, ptr)
+						end
+					else
+						ptr << [:op, operator, frag, nil]
+					end
+				elsif frag
+					ptr << [:op, operator, frag, nil]
+				else
+					# @todo throw exception
+				end
+			end
+		}
+
+		# closes out a state
+		_transition = lambda {|st|
+			errs "_transition: :#{st} (term=#{term.class}, ts=#{term_state})", 1
+			errs "state=#{state.inspect}"
+			ret = nil
+			if st == :op
+				ret = st
+				if term
+					_op_push.call(nil)
+					state.pop
+					term = nil
+					term_state = nil
+					errs "_transition: ptr=#{ptr.inspect}", 1
+				else
+					# @todo throw exception
+				end
+				# @todo throw exception -- no closing ')'
+			elsif st == :tern
+				if term
+					ptr << term_val(term, term_state == :quote)
+					term = nil
+					term_state = nil
+				end
+
+				if ptr[-4] == :tern
+					right = ptr.pop
+					left = ptr.pop
+					cond = ptr.pop
+					ptr.pop
+					ptr << [:op_tern, cond, left, right]
+				else
+					# @todo throw exception
+				end
+			elsif term
+				ret = :term
+				ptr << term_val(term, term_state == :quote)
+				errs "_transition: term <-- #{ptr.inspect}", 0
+				term = nil
+				term_state = nil
+			elsif st == :fnop || st == :nest
+			else
+				# @todo throw exception?
+			end
+			
+			return ret
+		}
+
+		errs "toks = #{toks.inspect}", 5
 		while (i < toks.length)
 			tok = toks[i]
 			i += 1
-			next if tok == ''
-
-			# assumes term has been initialized through open quote
-			# @todo any other contexts that \ is useful?
+			char_pos += tok.length
+			errs "tok: #{tok} (state=#{state[-1]}, term=#{term})", 6
 			if tok == '\\'
 				i += 1 if toks[i] == ''
+				char_pos += tok[i].length
 				term += toks[i]
 				i += 1
-			elsif state[d] == :quote
+			elsif term_state == :quote
 				if tok != quote_delim
 					term += tok
 				else
 					quote_delim = nil
-					state.pop
-					d -= 1
-					if state[d] == :op
-						op_insert(ptr[-1], term)
-						term = nil
-					elsif state[d] != :map
-						ptr << term
-						term = nil
-					end
-					last_state = :quote
+					_transition.call(state[-1])
+					term = nil
+					term_state = nil
 				end
-			elsif (tok == "'" || tok == '"') && last_state != :term
-				state << :quote
-				d += 1
+			elsif (tok == "'" || tok == '"')
 				quote_delim = tok
 				term = ''
+				term_state = :quote
+			elsif tok == ','
+				errs "comma: ptr=#{ptr.inspect}", 5
+				_transition.call(state[-1])
+				term = nil
+				term_state = nil
 			elsif tok == '{'
-				# special case: end delimiter
-				if state[d] == :nil && (last_state == :fnop || last_state == :term)
-					# normalize what would be :var to :fn because of something like 'func {'
-					ptr[-1][0] = :fn
+				if state[-1] == :nil && stack[0][-1][0] == :fn
 					delim = '{'
 					while toks[i]
 						delim += toks[i]
 						i += 1
 					end
-					ptr << [:brace_op, delim]
+					stack[0] << [:brace_op, delim]
 					break
-				end
+			  	end
 
-				if map_key
-					last_key << map_key
-					map_key = nil
-				end
+				stack << []
+				state << :hash
+				ptr = stack[-1]
+			elsif tok == '}'
+				errs "}", 5
+				_transition.call(state[-1])
 
-				state << :map
-				d += 1
+				rawvals = stack.pop
+				errs "rawvals=#{rawvals.inspect}", 4
 				map = ExprHash.new
-				stack << map
-				ptr = map
-			elsif tok == '['
-				if last_state != :term
-					state << :arr
-					d += 1
-					arr = ExprArray.new
-					stack << arr
-					ptr = arr
-				else
-					#$stderr.write("--- #{str}\n")
-					term += '['
+				imap = 0
+				while (imap < rawvals.length)
+					# @todo make sure key is scalar
+					# @todo make sure length is even (indicates unbalanced map def otherwise)
+					mkey = rawvals[imap]
+					mkey = mkey[1] if mkey.is_a?(Array)
+					map[mkey] = rawvals[imap+1]
+					imap += 2
 				end
-			elsif state[d] == :tern && tok == ':'
-				last_state = :colon
-			elsif state[d] == :map && tok == ':'
-				if map_key # preserve function
-					term += ':'
-				else
-					map_key = term
-					term = nil
-				end
-				last_state = :map_key
-			elsif state[d] == :map && tok == '}'
-				# @todo validate & convert term?
-				ptr.add_term(map_key, term_val(term, last_state == :quote))
-				map_key = nil
-				term = nil
 
 				state.pop
-				d -= 1
-				map = stack.pop
 				ptr = stack[-1]
-
-				if state[d] == :map
-					ptr.add_term(last_key.pop, map)
-				else
-					ptr << map
-				end
-			elsif last_state == :term && tok == ']'
-				term += ']'
-			elsif state[d] == :arr && tok == ']'
+				ptr << map
+			elsif tok == '?'
+				# mark the position
 				if term
-					ptr << term_val(term, last_state == :quote)
+					ptr << :tern
+					ptr << term_val(term, term_state == :quote)
 					term = nil
+					term_state = nil
+				else
+					last = ptr.pop
+					ptr << :tern
+					ptr << last
 				end
 
-				last_state = state.pop
-				d -= 1
-				arr = stack.pop
-				ptr = stack[-1]
-				if state[d] != :map
-					ptr << arr
-				else
-					term = arr
-				end
-			elsif tok.match(/\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/)
-				nest = last_state == :nest
-				state << :op
-				last_state = :op
-				d += 1
-				#$stderr.write "ops: term=#{term}\n"
-				if term
-					if ptr.length == 0
-						ptr << [:op, tok, term_val(term), nil]
+				state << :tern
+			elsif tok == ':'
+				errs ": #{state[-1]} | ptr=#{ptr.inspect}", 5
+				if state[-1] == :hash || state[-1] == :tern
+					# case for this: when a key is quoted, the term is committed to the pointer already, so at ':' term is nil
+					if term != nil
+						ptr << term_val(term, term_state == :quote)
 						term = nil
-					else
-						# @TODO this doesn't make sense. if there's a dangling term then there's a syntax error
-						# ... x + y z - a ==> 'z' would be the term before '-' for something like this to happen
-						last = ptr.pop
-						ptr << [:op, tok, last, term_val(term, last_state == :quote)]
+						term_state = nil
 					end
+					# @todo validate ternary stack length?
 				else
-					#$stderr.write "ops: ptr=#{ptr.inspect}\n"
-					if ptr.length > 0
-						frag = ptr.pop
-						# preserve nested expression
-						if nest
-							nested = frag[3].clone
-							frag[3] = [:op, tok, nested, nil]
-							ptr << frag
-						else
-							#$stderr.write "op: preced: #{frag}\n"
-							is_arr = frag.is_a?(Array)
-							op_precedence(tok, frag, ptr) # term_val(frag, last_state == :quote)
-							#$stderr.write "\top: preced: #{ptr.inspect}\n"
-						end
-					end
+					# @todo throw exception
 				end
+				errs "ptr=#{ptr.inspect}", 4
+			elsif tok == '['
+				stack << ExprArray.new
+				state << :arr
+				ptr = stack[-1]
+			elsif tok == ']'
+				last_state = _transition.call(state[-1])
+				state.pop
+				vals = stack.pop
+				ptr = stack[-1]
+				ptr << vals
 			elsif tok == '('
+				errs "(", 4
 				if term
-					arr = []
-					term = [:fn, term, arr]
-					if state[d] != :map
-						ptr << term
-					else
-						ptr.add_term(map_key, term)
-						last_key << map_key
-						map_key = nil
-					end
-					term = nil
-
+					# @todo throw exception if term is a quote?
+					# @todo throw exception if term is not a valid word?
+					frag = [:fn, term, nil]
+					stack << frag
+					stack << []
 					state << :fnop
-					d += 1
-					stack << arr
-					ptr = arr
+					ptr = stack[-1]
+					term = nil
+					term_state = nil
 				else
+					stack << []
 					state << :nest
-					d += 1
-					arr = []
-					stack << arr
-					ptr = arr
+					ptr = stack[-1]
 				end
 			elsif tok == ')'
-				if state[d] == :tern
-					op_tern_push(stack)
-					state.pop
-					d -= 1
-				end
-
-				#$stderr.write "pclose: #{state.inspect}\n"
-				#$stderr.write "pclose: #{stack.inspect}\n"
-				lstate = state.pop
-				lstack = stack.pop
+				last_state = _transition.call(state[-1])
+				#while state[-1] != :fnop && state[-1] != :nest
+				#	last_state = _transition.call(state[-1])
+				#	break if state[-1] == :fnop || state[-1] == :nest
+				#end
+				nest_statement = stack.pop
 				ptr = stack[-1]
-				d -= 1
-
-				if lstate == :op
-					term = term_val(term, last_state == :quote) if term
-					# @question: does this hold? test case that revealed bug: `@=('var', 1 +2)`
-					frag = state[-1] == :fnop ? lstack[-1] : lstack[0]
-					#$stderr.write "\tterm=#{term}\n\tlstack=#{lstack.inspect}\n\tfrag=#{frag.inspect}\n\tptr=#{ptr.inspect}\n***\n"
-					op_insert(frag, term)
-					#$stderr.write "\tfrag.2=#{frag.inspect}\n"
-					op_insert(ptr[-1], frag)
-
-					term = nil
-					last_state = state.pop
-					d -= 1
-				elsif lstate == :nest
-					if state[d] == :fnop
-						lstack.each do |item|
-							ptr << item
-						end
-					elsif state[d] == :map
-						term = lstack
-					else
-						# @todo does this ever execute?
-						frag = ptr[-1]
-						if frag
-							op_insert(frag, lstack)
-						else
-							lstack.each do |item|
-								ptr << item
-							end
-						end
+				_state = state.pop
+				errs ") nest_statement=#{nest_statement[0].inspect}", 5
+				if _state == :fnop
+					frag = stack.pop
+					frag[2] = nest_statement
+					ptr = stack[-1]
+					ptr << frag
+				elsif _state == :nest
+					if nest_statement.length > 1
+						# @todo throw exception, parenthetical expression should be reduced to single term
 					end
-				elsif lstate == :fnop
-					if term
-						lstack << term_val(term)
-						term = nil
+					nest_statement = nest_statement.pop
+					if !nest_statement.is_a?(Array)
+						errs "#{str}", 0
+						errs "!! nest: #{nest_statement}\n#{stack.inspect}", 0
 					end
-
-					if state[d] == :map
-						map_key = last_key.pop
-						term = ptr[map_key]
-						term[2] = lstack
-					else
-						ptr[-1][2] = lstack
-					end
-					last_state = :fnop
-				end
-			elsif tok == ','
-				# @todo if term is nil and ptr.length == 0, assume an error
-				if term
-					if state[d] == :map
-						# @todo map validation
-						ptr.add_term(term_val(map_key, true), term_val(term, last_state == :quote))
-						map_key = nil
-						term = nil
-					else
-						term = term_val(term, last_state == :quote)
-						ptr << term
-						term = nil
-					end
-					if state[d] == :tern
-						op_tern_push(stack)
-						state.pop
-						d -= 1
-					end
-				end
-				last_state = :comma
-			elsif tok == '?'
-				last_op = ptr.pop
-				ptr << [:op_tern, last_op, nil, nil]
-				arr = []
-				stack << arr
-				state << :tern
-				d += 1
-				ptr = arr
-				last_state = nil
-			elsif tok.strip != ''
-				term = term ? term + tok : tok
-			elsif tok != '' && term
-				next if tok.strip == '' && last_state == :quote
-				if state[d] == :op
-					if ptr[-1] == nil
-						# @throw exception
-					elsif ptr[-1][0] == :op
-						frag = ptr[-1]
-						op_insert(frag, term_val(term, last_state == :quote))
-						term = nil
-					else
-						# ???
-					end
-					last_state = state.pop
-					d -= 1
-				elsif state[d] == :map
-				elsif state[d-1] == :fnop
-					ptr << term_val(term, last_state == :quote)
-					term = nil
+					nest_statement << :group
+					inject_into(ptr, nest_statement)
+				elsif _state == :op
+					ptr << nest_statement
 				else
-					val = term_val(term, last_state == :quote)
-					ptr << val
-					term = nil
+					# @throw exception?
+				end
+			elsif tok.match(REGEX_OPERATORS)
+				# assumes negative
+				if tok == '-' && !term
+					t = ptr.pop
+					if t == nil
+						term = '-'
+						next
+					else
+						ptr << t
+					end
+				end
+				# @todo more appropriate way to push stack? otherwise fn(1 + 2 + 3) gets 1 too many :op
+				state << :op if state[-1] != :op
+				_op_push.call(tok)
+			elsif tok != ''
+				# white space; close out state
+				if tok.strip == ''
+					_transition.call(state[-1]) if term
+					next
 				end
 
-				last_state = :term
-			end
-		end
-
-		# @todo cleanup
-		term = term_val(term, last_state == :quote) if term
-		if state[d] == :tern
-			op_tern_push(stack)
-		elsif state[d] == :op && term
-			frag = ptr[-1]
-			if frag[0] == :op
-				op_insert(frag, term)
-			end
-		elsif state[d] == :quote
-			ptr << term
-		else
-			if term
-				if state[d] == :map
-					ptr.add_term(last_key.pop, term)
+				if !term
+					term = tok
 				else
-					ptr << term
+					term += tok
+				end
+				
+				# look-ahead to build variable reference
+				ntok = toks[i]
+				while ntok
+					if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && !ntok.match(REGEX_OPERATORS)
+						if ntok != ' ' && ntok != "\t"
+							term += ntok
+						end
+						i += 1
+						ntok = toks[i]
+					else
+						break
+					end
 				end
 			end
 		end
 
+		# @todo validate completeness of state (e.g. no omitted parenthesis)
+		if state[1] || term
+			_transition.call(state[-1])
+		end
+
+		errs "*** end state: #{state.inspect} ***", 2
+		errs "*** end stack: #{stack.inspect} ***", 2
 		return stack[0]
+	end
+	
+	def self.inject_into(ptr, frag)
+		if !ptr[-1]
+			ptr << frag
+		else
+			if ptr[-1].is_a?(Array)
+				if ptr[-1][0] == :op
+					op_insert(ptr[-1], frag)
+				end
+				# @todo is there an else?
+			end
+			# @todo is there an else?
+		end
 	end
 
 	# Takes the output of {@see struct} and evaluates static expressions to speed up
@@ -599,7 +575,7 @@ class Eggshell::ExpressionEvaluator
 	# @param Map vtable Map for variable references.
 	# @param Map ftable Map for function calls.
 	def self.expr_eval(expr, vtable, ftable)
-		#puts "EXPAND: init #{expr.inspect}"
+		errs "expr_eval: #{expr.inspect}", 3
 		expr = expr[0] if expr.is_a?(Array) && expr.length == 1
 
 		ret = nil
@@ -629,13 +605,25 @@ class Eggshell::ExpressionEvaluator
 					op = frag[1]
 					lterm = frag[2]
 					rterm = frag[3]
-
+					
+					errs "lterm >> #{lterm.inspect}", 1
+					errs "rterm >> #{rterm.inspect}", 1
 					if lterm.is_a?(Array)
-						lterm = expr_eval(lterm, vtable, ftable)
+						if lterm[0] == :var
+							lterm = retrieve_var(lterm[1], vtable, ftable)
+						else
+							lterm = expr_eval(lterm, vtable, ftable)
+						end
 					end
 					if rterm.is_a?(Array)
-						rterm = expr_eval(rterm, vtable, ftable)
+						if rterm[0] == :var
+							rterm = retrieve_var(rterm[1], vtable, ftable)
+						else
+							rterm = expr_eval(rterm, vtable, ftable)
+						end
 					end
+					errs "lterm << #{lterm.inspect}", 0
+					errs "rterm << #{rterm.inspect}", 0
 					ret = expr_eval_op(op, lterm, rterm)
 				elsif frag[0] == :fn
 					# @todo see if fname itself has an entry, and call if it has method `func_call` (?)
@@ -664,11 +652,10 @@ class Eggshell::ExpressionEvaluator
 						# @todo log error or throw exception? maybe this should be a param option
 					end
 				elsif frag[0] == :var
-					ret = retrieve_var(frag[1], vtable)
+					ret = retrieve_var(frag[1], vtable, ftable)
 					if ret.is_a?(Array) && ret[0].is_a?(Symbol)
 						ret = expr_eval(ret, vtable, ftable)
 					end
-					#$stderr.write "var => #{ret.inspect}"
 				end
 			end
 		else
@@ -679,9 +666,12 @@ class Eggshell::ExpressionEvaluator
 
 	def self.expr_eval_op(op, lterm, rterm)
 		ret = nil
+		#$stderr.write "** #{lterm.inspect} ( #{op} ) #{rterm.inspect}\n"
 		case op
 		when '=='
 			ret = lterm == rterm
+		when '!='
+			ret = lterm != rterm
 		when '<'
 			ret = lterm < rterm
 		when '>'
@@ -726,123 +716,127 @@ class Eggshell::ExpressionEvaluator
 	# be returned.
 	# @param Boolean return_ptr If true, returns the object holding the value, not
 	# the value itself.
-	# @todo make last_ptr nil if full resolution fails
-	def self.retrieve_var(var, vtable, return_ptr = false)
-		return vtable[var] if vtable[var]
-		# @todo more validation
-		# @todo support key expressions?
-		val = nil
-		vparts = var.split(/(\.|\[|\]\[|\])/)
-		ptr = vtable
-		last_ptr = nil
+	# @return Either the resolved value (or nil), or if `return_ptr` is true, a structure
+	# in the form {{[n-1, [ley, type]]}} where `n-1` is the parent of the last key/get, 
+	# {{key}} is the key/getter, and {{type}} is either {{:arr}} or {{:get}}/
+	def self.retrieve_var(var, vtable, ftable, return_ptr = false)
+		# @todo only do this when there's no [] and return_ptr is false
+		errs "retrieve_var: #{var}", 5
+		retval = vtable[var]
 
-		i = 0
-		key = nil
-		type = nil
-		while i < vparts.length
-			tok = vparts[i]
-			i += 1
-			if tok == '.'
-				type = :get
-			elsif tok == '['
-				type = :arr
-			elsif tok == '][' || tok == ']'
-				type = :get if tok == ']'
-			else
-				key = tok
-				if ptr == vtable
-					ptr = vtable[key]
-					break if ptr == nil
-					next
-				end
+		if !retval
+			# @todo more validation
+			# @todo support key expressions?
+			val = nil
+			vparts = var.split(/(\.|\[|\])/)
+			vparts.delete("")
 
-				last_ptr = ptr
-				if type == :get
-					meth1 = key.to_sym
-					meth2 = ('get_' + key).to_sym
-					if ptr.respond_to?(meth1)
-						ptr = ptr.send(meth1)
-					elsif ptr.respond_to?(meth2)
-						ptr = ptr.send(meth2)
-					end
+			ptr = vtable
+			last_ptr = nil
+			last_key = nil
+
+			i = 0
+			key = ''
+			type = :arr
+			# need to quote first element so that loop doesn't assume this to be a var reference
+			vparts[0] = "'#{vparts[0]}'"
+
+			while i < vparts.length
+				tok = vparts[i]
+				errs "var:tok=#{tok}", 4
+				i += 1
+				check_key = false
+				if tok == '.'
+					type = :get
+					check_key = true
+				elsif tok == '['
+					type = :arr
+					check_key = true
+				elsif tok == ']'
+					check_key = true
 				else
-					if key[0] == '"' || key == "'"
-						key = key[1...-1]
-					else
-						key = retrieve_var(key, vtable)
-					end
+					key += tok
+				end
+				
+				if check_key || !vparts[i]
+					next if key == ''
+					errs "var:check=#{key} (#{type})", 3
+					# @todo if :arr but item doesn't respond to [], return nil?
+					last_ptr = ptr
+					if type == :arr
+						if !ptr.respond_to?(:[]) || ptr.is_a?(Numeric)
+							ptr = nil
+							break
+						end
 
-					if key
-						if ptr.is_a?(Hash)
-							ptr = ptr[key]
-						elsif ptr.is_a?(Array)
-							if key.is_a?(String) && key.match(/-?\d+/)
-								key = key.to_i
-							end
-							ptr = ptr[key]
+						# lookup var reference if not quoted and not integer
+						if key[0] == '"' || key[0] == "'"
+							key = key[1...-1]
+						elsif key.match(/[0-9]+/)
+							key = key.to_i
+						else
+							key = retrieve_var(key, vtable, {}, false)
+						end
+						
+						# make sure key is numeric for array
+						if ptr.is_a?(Array) && !key.is_a?(Numeric)
+							ptr = nil
+							break
+						end
+
+						ptr = ptr[key]
+						if ptr
+							last_key = [key, :arr]
+						else
+							break
+						end
+					else
+						# @todo sanity check? (no quotes, not numeric or starting with num)
+						# @todo restrict to 'get_*'?
+						meth1 = key.to_sym
+						meth2 = ('get_' + key).to_sym
+						if ptr.respond_to?(meth1)
+							last_ptr = ptr
+							ptr = ptr.send(meth1)
+						elsif ptr.respond_to?(meth2)
+							last_ptr = ptr
+							ptr = ptr.send(meth2)
+						else
+							ptr = nil
+							break
 						end
 					end
+
+					key = ''
+				end
+			end
+
+			retval = ptr
+			if return_ptr
+				if last_ptr != nil
+					retval = [last_ptr, last_key]
+				else
+					retval = nil
 				end
 			end
 		end
 
-		if return_ptr
-			return last_ptr
+		return retval
+	end
+	
+	# 
+	def set_var(var, key, type, value)
+		if type == :arr
+			# @todo check key if Array
+			if var.is_a?(Hash) || var.is_a?(Array)
+				var[key] = value
+			end
 		else
-			return ptr
+			sym = "set_#{key}".to_sym
+			if var.respond_to?(sym)
+				var.send(sym, value)
+			end
 		end
-	end
-
-	def self.print_struct(struct, indent = '')
-	end
-
-	def self.fn(arg1, arg2, *arg3)
-		puts "fn: 1:#{arg1}, \n\t2:#{arg2}\n\t3:#{arg3}"
-	end
-
-	def self.test_retrieve_var
-		vtable = {}
-		ftable = {}
-		vtable['map'] = {'k1'=>'val_k1', 'submap' => {'banh'=>'mi'}}
-		vtable['str_obj'] = 'this is a strong'
-		vtable['map.submap'] = 14
-		#puts "map.k1 => #{retrieve_var('map.k1', vtable)}"
-		puts "map['submap']['banh'] => #{retrieve_var('map["submap"]["banh"]', vtable)}"
-		puts "map[submap]['banh'] => #{retrieve_var('map[submap]["banh"]', vtable)}"
-		#puts "str_obj => #{retrieve_var('str_obj', vtable)}"
-		#puts "str_obj.length => #{retrieve_var('str_obj.length', vtable)}"
-	end
-
-	def self.test_struct
-		vtable = {'val' => 'VALUE'}
-		ftable = {'' => Eggshell::ExpressionEvaluator}
-
-		expr1 = "x.y[0]['1']"
-		expr2 = "fn(#{expr1}, a[1])"
-		expr3 = "5 + 8 / 4 + 6"
-		expr4 = "{key : 'val', val: 55.0, another: val}"
-		expr5 = "{key : val, val: 55.0}"
-		expr6 = "fn(#{expr4}, [1 < 5, 0, 1], {'k': val})"
-
-		#puts "#{expr1} => #{struct(expr1)}"
-		#puts "#{expr2} => #{struct(expr2)}"
-
-		#s3 = struct(expr3)
-		#s3c = struct_compact(s3)
-		#puts "3. #{expr3} => #{s3}"
-		#puts "3. #{expr3} => #{s3c}"
-		#puts "4. #{expr4} => #{struct_compact(struct(expr4))}"
-		#puts "5. #{expr5} => #{struct_compact(struct(expr5))}"
-
-		#s6 = struct(expr6)
-		#s6c = struct_compact(s6)
-		# puts "		#{s6c}"
-		# puts "		#{expr_eval(s6c, vtable, ftable)}"
-
-		expr7 = "fn(1 < 5 ? '1 smaller' : '5 smaller', 5 > 1, '5 bigger', '1 bigger', 1)"
-		s7 = struct(expr7)
-		puts "7. #{expr7} => #{s7.inspect}"
-		expr_eval(s7, vtable, ftable)
 	end
 
 	def self.restructure(struct)
@@ -857,4 +851,12 @@ class Eggshell::ExpressionEvaluator
 		else
 		end
 	end
+	
+	def self.errs(str, lvl = 5)
+		return if lvl < $errs_write
+		$stderr.write "[#{lvl}]#{'  ' * ($errs_write_indent-lvl)}#{str}\n"
+	end
 end
+
+$errs_write = 10
+$errs_write_indent = 10

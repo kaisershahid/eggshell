@@ -320,283 +320,287 @@ module Eggshell
 
 			i = 0
 
-			while (i <= lines.length)
-				line = nil
-				indent_level = 0
-				indents = ''
+			begin
+				while (i <= lines.length)
+					line = nil
+					indent_level = 0
+					indents = ''
 
-				# special condition to get a dangling line
-				if i == lines.length
-					if ext_line
-						line = ext_line
-						ext_line = nil
+					# special condition to get a dangling line
+					if i == lines.length
+						if ext_line
+							line = ext_line
+							ext_line = nil
+						else
+							break
+						end
 					else
-						break
+						line = lines[i]
 					end
-				else
-					line = lines[i]
-				end
-				i += 1
+					i += 1
 
-				if line.is_a?(Block)
-					line.process(buff)
-					next
-				end
+					if line.is_a?(Block)
+						line.process(buff)
+						next
+					end
 
-				orig = line
-				oline = line
+					orig = line
+					oline = line
 
-				# @todo configurable space tab?
-				offset = 0
-				tablen = 0
-				if line[0] == TAB || line[0..3] == TAB_SPACE
-					tab = line[0] == TAB ? TAB : TAB_SPACE
-					tablen = tab.length
-					indent_level += 1
-					offset = tablen
-					while line[offset...offset+tablen] == tab
+					# @todo configurable space tab?
+					offset = 0
+					tablen = 0
+					if line[0] == TAB || line[0..3] == TAB_SPACE
+						tab = line[0] == TAB ? TAB : TAB_SPACE
+						tablen = tab.length
 						indent_level += 1
-						offset += tablen
+						offset = tablen
+						while line[offset...offset+tablen] == tab
+							indent_level += 1
+							offset += tablen
+						end
+						# if block_handler_indent > 0
+						# 	indent_level -= block_handler_indent
+						# 	offset -= (tablen * block_handler_indent)
+						# end
+						indents = line[0...offset]
+						line = line[offset..-1]
 					end
-					# if block_handler_indent > 0
-					# 	indent_level -= block_handler_indent
-					# 	offset -= (tablen * block_handler_indent)
-					# end
-					indents = line[0...offset]
-					line = line[offset..-1]
-				end
 
-				line = line.rstrip
-				line_end = ''
-				if line.length < oline.length
-					line_end = oline[line.length..-1]
-				end
+					line = line.rstrip
+					line_end = ''
+					if line.length < oline.length
+						line_end = oline[line.length..-1]
+					end
 
-				# if line end in \, buffer and continue to next line;
-				# join buffered line once \ no longer at end
-				if line[-1] == '\\' && line.length > 1
-					if line[-2] != '\\'
-						# special case: if a line consists of a single \, assume line ending is wanted,
-						# otherwise join directly with previous line
-						if line == '\\'
-							line = line_end
+					# if line end in \, buffer and continue to next line;
+					# join buffered line once \ no longer at end
+					if line[-1] == '\\' && line.length > 1
+						if line[-2] != '\\'
+							# special case: if a line consists of a single \, assume line ending is wanted,
+							# otherwise join directly with previous line
+							if line == '\\'
+								line = line_end
+							else
+								line = line[0..-2]
+							end
+
+							if ext_line
+								ext_line += indents + line
+							else
+								ext_line = indents + line
+							end
+							next
 						else
 							line = line[0..-2]
 						end
+					end
 
-						if ext_line
-							ext_line += indents + line
-						else
-							ext_line = indents + line
+					# join this line with last line and terminate last line
+					if ext_line
+						line = ext_line + line
+						ext_line = nil
+					end
+					oline = line
+
+					if line[0..1] == '!#'
+						next
+					end
+
+					# relative indenting				
+					if block_handler_indent > 0
+						indents = indents[(tablen*block_handler_indent)..-1]
+					end
+
+					if block_handler_raw
+						stat = block_handler.collect(line, buff, indents, indent_level - block_handler_indent)
+						if stat != Eggshell::BlockHandler::COLLECT_RAW
+							block_handler_raw = false
+							if stat != Eggshell::BlockHandler::COLLECT
+								block_handler = nil
+								if stat == Eggshell::BlockHandler::RETRY
+									i -= 1
+								end
+							end
 						end
 						next
-					else
-						line = line[0..-2]
 					end
-				end
 
-				# join this line with last line and terminate last line
-				if ext_line
-					line = ext_line + line
-					ext_line = nil
-				end
-				oline = line
+					# macro processing
+					if line[0] == '@'
+						macro = nil
+						args = nil
+						delim = nil
 
-				if line[0..1] == '!#'
-					next
-				end
+						if line.index(' ') || line.index('(') || line.index('{')
+							# since the macro statement is essentially a function call, parse the line as an expression
+							expr_struct = ExpressionEvaluator.struct(line)
+							fn = expr_struct.shift
+							if fn.is_a?(Array) && fn[0] == :fn
+								macro = fn[1][1..fn[1].length]
+								args = fn[2]
+								if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
+									delim = expr_struct[-1][1]
+								end
+							end
+						else
+							macro = line[1..line.length]
+						end
+						
+						# special case: block parameter
+						if macro == '!'
+							set_block_params(args[0], args[1], args[2])
+							next
+						end
 
-				# relative indenting				
-				if block_handler_indent > 0
-					indents = indents[(tablen*block_handler_indent)..-1]
-				end
+						macro_handler = @macros[macro]
+						if macro_handler
+							if delim
+								if block
+									nblock = Block.new(macro, macro_handler, args, block.cur.depth + 1, delim)
+									block.push(nblock)
+								else
+									block = Block.new(macro, macro_handler, args, macro_depth, delim)
+								end
+							else
+								if block
+									block.collect(Block.new(macro, macro_handler, args, macro_depth, nil))
+								else
+									macro_handler.process(buff, macro, args, nil, macro_depth)
+								end
+							end
+						else
+							_warn("macro not found: #{macro} | #{line}")
+						end
+						next
+					elsif block
+						if line == block.cur.delim
+							lb = block.pop
+							if !block.cur
+								block.process(buff)
+								block = nil
+							end
+						else
+							block.cur.collect(orig.rstrip)
+						end
+						next
+					end
 
-				if block_handler_raw
-					stat = block_handler.collect(line, buff, indents, indent_level - block_handler_indent)
-					if stat != Eggshell::BlockHandler::COLLECT_RAW
-						block_handler_raw = false
-						if stat != Eggshell::BlockHandler::COLLECT
+					if block_handler
+						stat = block_handler.collect(line, buff, indents, indent_level - block_handler_indent)
+
+						if stat == Eggshell::BlockHandler::COLLECT_RAW
+							block_handler_raw = true
+						elsif stat != Eggshell::BlockHandler::COLLECT
 							block_handler = nil
+							block_handler_raw = false
 							if stat == Eggshell::BlockHandler::RETRY
 								i -= 1
 							end
 						end
-					end
-					next
-				end
-
-				# macro processing
-				if line[0] == '@'
-					macro = nil
-					args = nil
-					delim = nil
-
-					if line.index(' ') || line.index('(') || line.index('{')
-						# since the macro statement is essentially a function call, parse the line as an expression
-						expr_struct = ExpressionEvaluator.struct(line)
-						fn = expr_struct.shift
-						if fn.is_a?(Array) && fn[0] == :fn
-							macro = fn[1][1..fn[1].length]
-							args = fn[2]
-							if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
-								delim = expr_struct[-1][1]
-							end
-						end
-					else
-						macro = line[1..line.length]
-					end
-					
-					# special case: block parameter
-					if macro == '!'
-						set_block_params(args[0], args[1], args[2])
+						line = nil
 						next
 					end
 
-					macro_handler = @macros[macro]
-					if macro_handler
-						if delim
-							if block
-								nblock = Block.new(macro, macro_handler, args, block.cur.depth + 1, delim)
-								block.push(nblock)
-							else
-								block = Block.new(macro, macro_handler, args, macro_depth, delim)
-							end
+					if line.match(HTML_PASSTHRU)
+						if block_handler
+							block_handler.collect(nil, buff)
+							block_handler = nil
+						end
+						buff << fmt_line(line)
+						next
+					end
+
+					# html block processing
+					html = line.match(HTML_BLOCK)
+					if html
+						end_html = HTML_BLOCK_END["<#{html[1]}"]
+						end_html = "</#{html[1]}>$" if !end_html
+						if !line.match(end_html)
+							in_html = true
+						end
+
+						line = @vars['html.no_eval'] ? orig : expand_expr(orig)
+						buff << line.rstrip
+
+						next
+					elsif in_html
+						if line == ''
+							buff << line
 						else
-							if block
-								block.collect(Block.new(macro, macro_handler, args, macro_depth, nil))
-							else
-								macro_handler.process(buff, macro, args, nil, macro_depth)
+							line = @vars['html.no_eval'] ? orig : expand_expr(orig)
+							buff << line.rstrip
+						end
+
+						if line.match(end_html)
+							in_html = false
+							end_html = nil
+							@vars.delete('html.no_eval')
+						end
+						next
+					end
+
+					# @todo try to map indent to a block handler
+					next if line == ''
+
+					# check if the block starts off and matches against any handlers; if not, assign 'p' as default
+					# two checks: `block(params).`; `block.`
+					block_type = nil
+					bt = line.match(BLOCK_MATCH_PARAMS)
+					if bt
+						idx0 = bt[0].length
+						idx1 = line.index(').', idx0)
+						if idx1
+							block_type = line[0..idx0-2]
+							params = line[0...idx1+1].strip
+							line = line[idx1+2..line.length] || ''
+							if params != ''
+								struct = Eggshell::ExpressionEvaluator.struct(params)
+								arg0 = struct[0][2][0]
+								arg1 = struct[0][2][1]
+								arg0 = expr_eval(arg0) if arg0
+								set_block_params(arg0, arg1)
 							end
 						end
 					else
-						_warn("macro not found: #{macro}")
-					end
-					next
-				elsif block
-					if line == block.cur.delim
-						lb = block.pop
-						if !block.cur
-							block.process(buff)
-							block = nil
+						block_type = line.match(BLOCK_MATCH)
+						if block_type && block_type[0].strip != ''
+							block_type = block_type[1]
+							len = block_type.length
+							block_type = block_type[0..-2] if block_type[-1] == '.'
+							line = line[len..line.length] || ''
+						else
+							block_type = nil
 						end
-					else
-						block.cur.collect(orig.rstrip)
 					end
-					next
-				end
 
-				if block_handler
-					stat = block_handler.collect(line, buff, indents, indent_level - block_handler_indent)
 
+					block_type = 'p' if !block_type
+					block_handler_indent = indent_level
+					block_handler = @blocks[block_type]
+					block_handler = @noop_block if !block_handler 
+					stat = block_handler.start(block_type, line.lstrip, buff, indents, indent_level)
+					# block handler won't continue to next line; clear and possibly retry
 					if stat == Eggshell::BlockHandler::COLLECT_RAW
 						block_handler_raw = true
 					elsif stat != Eggshell::BlockHandler::COLLECT
 						block_handler = nil
-						block_handler_raw = false
 						if stat == Eggshell::BlockHandler::RETRY
 							i -= 1
 						end
-					end
-					line = nil
-					next
-				end
-
-				if line.match(HTML_PASSTHRU)
-					if block_handler
-						block_handler.collect(nil, buff)
-						block_handler = nil
-					end
-					buff << fmt_line(line)
-					next
-				end
-
-				# html block processing
-				html = line.match(HTML_BLOCK)
-				if html
-					end_html = HTML_BLOCK_END["<#{html[1]}"]
-					end_html = "</#{html[1]}>$" if !end_html
-					if !line.match(end_html)
-						in_html = true
-					end
-
-					line = @vars['html.no_eval'] ? orig : expand_expr(orig)
-					buff << line.rstrip
-
-					next
-				elsif in_html
-					if line == ''
-						buff << line
 					else
-						line = @vars['html.no_eval'] ? orig : expand_expr(orig)
-						buff << line.rstrip
-					end
-
-					if line.match(end_html)
-						in_html = false
-						end_html = nil
-						@vars.delete('html.no_eval')
-					end
-					next
-				end
-
-				# @todo try to map indent to a block handler
-				next if line == ''
-
-				# check if the block starts off and matches against any handlers; if not, assign 'p' as default
-				# two checks: `block(params).`; `block.`
-				block_type = nil
-				bt = line.match(BLOCK_MATCH_PARAMS)
-				if bt
-					idx0 = bt[0].length
-					idx1 = line.index(').', idx0)
-					if idx1
-						block_type = line[0..idx0-2]
-						params = line[0...idx1+1].strip
-						line = line[idx1+2..line.length] || ''
-						if params != ''
-							struct = Eggshell::ExpressionEvaluator.struct(params)
-							arg0 = struct[0][2][0]
-							arg1 = struct[0][2][1]
-							arg0 = expr_eval(arg0) if arg0
-							set_block_params(arg0, arg1)
-						end
-					end
-				else
-					block_type = line.match(BLOCK_MATCH)
-					if block_type && block_type[0].strip != ''
-						block_type = block_type[1]
-						len = block_type.length
-						block_type = block_type[0..-2] if block_type[-1] == '.'
-						line = line[len..line.length] || ''
-					else
-						block_type = nil
+						line = nil
 					end
 				end
 
-
-				block_type = 'p' if !block_type
-				block_handler_indent = indent_level
-				block_handler = @blocks[block_type]
-				block_handler = @noop_block if !block_handler 
-				stat = block_handler.start(block_type, line.lstrip, buff, indents, indent_level)
-				# block handler won't continue to next line; clear and possibly retry
-				if stat == Eggshell::BlockHandler::COLLECT_RAW
-					block_handler_raw = true
-				elsif stat != Eggshell::BlockHandler::COLLECT
-					block_handler = nil
-					if stat == Eggshell::BlockHandler::RETRY
-						i -= 1
-					end
-				else
-					line = nil
+				if block_handler
+					block_handler.collect(line, buff, indents, indent_level - block_handler_indent) if line
+					block_handler.collect(nil, buff)
 				end
-			end
-
-			#$stderr.write "last line: #{line}\n"
-
-			if block_handler
-				block_handler.collect(line, buff, indents, indent_level - block_handler_indent) if line
-				block_handler.collect(nil, buff)
+			rescue => ex
+				_error "Exception approximately on line: #{line}"
+				_error ex.message + "\t#{ex.backtrace.join("\n\t")}"
+				_error "vars = #{@vars.inspect}"
 			end
 
 			return buff.join("\n")

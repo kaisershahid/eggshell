@@ -1,5 +1,6 @@
 class Eggshell::Bundles::Basics
 	BUNDLE_ID = 'basics'
+	EE = Eggshell::ExpressionEvaluator
 
 	def self.new_instance(proc, opts = nil)
 		BasicBlocks.new.set_processor(proc)
@@ -560,16 +561,21 @@ class Eggshell::Bundles::Basics
 				if args.length >= 2
 					key = args[0]
 					val = args[1]
-					if val.is_a?(Array)
-						if val[0] == :str
-							val = val[1]
-						elsif val[1] == :var
-							val = @proc.vars[val[2]]
-						else
-							# @todo operator?
-						end
+					
+					if val.is_a?(Array) && val[0].is_a?(Symbol)
+						@proc.vars[key] = @proc.expr_eval(val)
+					else
+						@proc.vars[key] = val
 					end
-					@proc.vars[key] = val
+					
+					# @todo fix this so it's possible to set things like arr[0].setter, etc.
+					# ptrs = EE.retrieve_var(key, @proc.vars, {}, true)
+					# val = val.is_a?(Array) && val[0] == :var ? EE.retrieve_var(val[1], @proc.vars, {}) : val
+					# if ptrs
+					# 	EE.set_var(ptrs[0], ptrs[1][0], ptrs[1][1], val)
+					# else
+					# 	@proc.vars[key] = val
+					# end
 				end
 			elsif macname == 'include'
 				paths = args[0]
@@ -587,6 +593,7 @@ class Eggshell::Bundles::Basics
 		end
 
 		def do_include(paths, buff, depth, opts = {})
+			@proc.vars[:include_stack] = [] if !@proc.vars[:include_stack]
 			paths = [paths] if !paths.is_a?(Array)
 			# @todo check all include paths?
 			paths.each do |inc|
@@ -609,8 +616,16 @@ class Eggshell::Bundles::Basics
 				checks.each do |inc|
 					if File.exists?(inc)
 						lines = IO.readlines(inc, $/, opts)
-						buff << @proc.process(lines, depth + 1)
-						@proc._debug("include: 200 #{inc}")
+						@proc.vars[:include_stack] << inc
+
+						begin
+							buff << @proc.process(lines, depth + 1)
+							@proc._debug("include: 200 #{inc}")
+						rescue => ex
+							@proc._error("include: 500 #{inc}: #{ex.message}")
+						end
+						
+						@proc.vars[:include_stack].pop
 						break
 					else
 						@proc._warn("include: 404 #{inc}")
