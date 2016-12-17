@@ -1,72 +1,5 @@
 # Eggshell.
 module Eggshell
-	# Encapsulates a line with indents and indent level in separate fields.
-	# Useful when macros need to have original indent context.
-	class Line
-		def initialize(line, indents, indent_level)
-			@line = line
-			@indents = indents
-			@indent_level = indent_level
-		end
-		attr_reader :line, :indents, :indent_level
-
-		def to_s
-			line
-		end
-	end
-	# For complex nested content, use the block to execute content correctly.
-	# Quick examples: nested loops, conditional statements.
-	class Block
-		def initialize(macro, handler, args, depth, delim = nil)
-			@stack = [self]
-			@lines = []
-			@macro = macro
-			@handler = handler
-			@args = args
-			@delim = delim
-
-			# reverse, and swap out
-			if @delim && @delim[0] == '{'
-				@delim = @delim.reverse.gsub(/\{/, '}').gsub(/\[/, ']')
-			else
-				@delim = nil
-			end
-
-			@depth = depth
-		end
-
-		attr_reader :depth, :lines, :delim
-
-		def cur
-			@stack[-1]
-		end
-
-		def push(block)
-			@stack[-1].lines << block
-			@stack << block
-		end
-
-		def pop()
-			@stack.pop
-		end
-
-		def collect(entry)
-			@stack[-1].lines << entry
-		end
-
-		def process(buffer, depth = nil)
-			@handler.process(buffer, @macro, @args, @lines, depth == nil ? @depth : depth)
-		end
-
-		def inspect
-			"<BLOCK #{@macro} (#{@depth}) #{@handler.class} | #{@lines.inspect} >"
-		end
-	end
-
-	class ProcessorContext
-		# TBD
-	end
-
 	class Processor
 		BLOCK_MATCH = /^([a-z0-9_-]+\.|[|\/#><*+-]+)/
 		BLOCK_MATCH_PARAMS = /^([a-z0-9_-]+|[|\/#><*+-]+)\(/
@@ -755,6 +688,8 @@ module Eggshell
 	end
 end
 
+require_relative './eggshell/block.rb'
+require_relative './eggshell/processor-context.rb'
 require_relative './eggshell/expression-evaluator.rb'
 require_relative './eggshell/macro-handler.rb'
 require_relative './eggshell/block-handler.rb'
