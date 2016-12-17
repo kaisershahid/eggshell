@@ -18,6 +18,8 @@ class Eggshell_TestExprEval < Test::Unit::TestCase
 		"fn('string', var1 + var2)" => [[:fn, 'fn', ['string', [:op, '+', [:var, 'var1'], [:var, 'var2']]]]],
 		"fn(1 + 2 + 3)" => [[:fn, 'fn', [[:op, '+', 1, [:op, '+', 2, 3]]]]],
 		"fn(1 + 2 + 3 / var)" => [[:fn, 'fn', [[:op, '+', 1, [:op, '+', 2, [:op, '/', 3, [:var, 'var']]]]]]],
+		"fn() {" => [[:fn, 'fn', []], [:brace_op, '{']],
+		"fn {" => [[:fn, 'fn', []], [:brace_op, '{']]
 	}	
 	# checks parse tree structure
 	def test_basic_struct

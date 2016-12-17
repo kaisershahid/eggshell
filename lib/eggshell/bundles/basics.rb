@@ -617,7 +617,7 @@ class Eggshell::Bundles::Basics
 					if File.exists?(inc)
 						lines = IO.readlines(inc, $/, opts)
 						@proc.vars[:include_stack] << inc
-
+						@proc.context.push_line_counter
 						begin
 							buff << @proc.process(lines, depth + 1)
 							@proc._debug("include: 200 #{inc}")
@@ -626,6 +626,7 @@ class Eggshell::Bundles::Basics
 						end
 						
 						@proc.vars[:include_stack].pop
+						@proc.context.pop_line_counter
 						break
 					else
 						@proc._warn("include: 404 #{inc}")

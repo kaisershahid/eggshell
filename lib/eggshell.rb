@@ -1,20 +1,82 @@
 # Eggshell.
 module Eggshell
+
+	# Tracks line and line count. Correctness depends
+	class LineCounter
+		def initialize(file = nil)
+			@file = file
+			@l_stack = []
+			@l_count = []
+			push
+		end
+
+		def line
+			return @l_stack[-1]
+		end
+		
+		def line_num
+			c = 0
+			@l_count.each do |lc|
+				c += lc
+			end
+			return c
+		end
+		
+		def file
+			@file
+		end
+
+		# Sets the current line and offset. If offset is not nil, resets the counter to this value.
+		# A sample situation where this is needed:
+		#
+		# pre.
+		# block here
+		# \
+		# @macro {
+		#     macro line 1
+		#     macro line 2
+		# }
+		# \
+		# last block
+		# 
+		# During execution, `@macro` would push a new count state. After execution is over, it's popped,
+		# leaving the line number at the macro start. The main process loop, however, is keeping track
+		# of all the lines during its own execution, so it can set the offset to the actual line again.
+		def new_line(line, offset = nil)
+			@l_stack[-1] = line
+			@l_count[-1] = offset != nil ? offset : @l_count[-1] + 1
+		end
+
+		def push
+			@l_stack << nil
+			@l_count << 0
+		end
+		
+		def pop
+			@l_stack.pop
+			@l_count.pop
+			nil
+		end
+	end
+
 	class Processor
 		BLOCK_MATCH = /^([a-z0-9_-]+\.|[|\/#><*+-]+)/
 		BLOCK_MATCH_PARAMS = /^([a-z0-9_-]+|[|\/#><*+-]+)\(/
 
 		def initialize
-			@vars = {:references => {}, :toc => [], :include_paths => [], 'log.level' => '1'}
-			@funcs = {}
-			@macros = {}
-			@blocks = {}
-			@block_params = {}
-			@expr_cache = {}
+			@context = Eggshell::ProcessorContext.new
+			@vars = @context.vars
+			@funcs = @context.funcs
+			@macros = @context.macros
+			@blocks = @context.blocks
+			@block_params = @context.block_params
+			@expr_cache = @context.expr_cache
 
 			@noop_macro = Eggshell::MacroHandler::Defaults::NoOpHandler.new
 			@noop_block = Eggshell::BlockHandler::Defaults::NoOpHandler.new
 		end
+		
+		attr_reader :context
 
 		def register_macro(handler, *macros)
 			macros.each do |mac|
@@ -390,14 +452,14 @@ module Eggshell
 						if macro_handler
 							if delim
 								if block
-									nblock = Block.new(macro, macro_handler, args, block.cur.depth + 1, delim)
+									nblock = Eggshell::Block.new(macro, macro_handler, args, block.cur.depth + 1, delim)
 									block.push(nblock)
 								else
-									block = Block.new(macro, macro_handler, args, macro_depth, delim)
+									block = Eggshell::Block.new(macro, macro_handler, args, macro_depth, delim)
 								end
 							else
 								if block
-									block.collect(Block.new(macro, macro_handler, args, macro_depth, nil))
+									block.collect(Eggshell::Block.new(macro, macro_handler, args, macro_depth, nil))
 								else
 									macro_handler.process(buff, macro, args, nil, macro_depth)
 								end

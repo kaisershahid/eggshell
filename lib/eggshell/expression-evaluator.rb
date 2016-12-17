@@ -300,7 +300,7 @@ class Eggshell::ExpressionEvaluator
 			errs "tok: #{tok} (state=#{state[-1]}, term=#{term})", 6
 			if tok == '\\'
 				i += 1 if toks[i] == ''
-				char_pos += tok[i].length
+				char_pos += toks[i].length
 				term += toks[i]
 				i += 1
 			elsif term_state == :quote

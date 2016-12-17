@@ -1,5 +1,5 @@
-# For complex nested content, use the block to execute content correctly.
-# Quick examples: nested loops, conditional statements.
+# For multiline macros, the block collects lines specific to the block (including other nested macros).
+# This allows for proper execution when dealing with loops and branches.
 class Eggshell::Block
 	def initialize(macro, handler, args, depth, delim = nil)
 		@stack = [self]
@@ -21,15 +21,18 @@ class Eggshell::Block
 
 	attr_reader :depth, :lines, :delim
 
+	# Returns the current active block.
 	def cur
 		@stack[-1]
 	end
 
+	# Adds a nested block to collect lines into.
 	def push(block)
 		@stack[-1].lines << block
 		@stack << block
 	end
 
+	# Removes a nested block.
 	def pop()
 		@stack.pop
 	end
