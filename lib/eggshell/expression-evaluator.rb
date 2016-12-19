@@ -1,23 +1,5 @@
-# Parses and evaluates statements (expressions).
-#
-# pre.
-# # simple expression
-# 1 + 5
-# 1 < (5 + 8) || 3 * 4 > 2
-# 
-# # arrays and maps
-# [1, 2, 3]
-# [1, [2, 3], 4]
-# {'key': 'val', 'another': 'val2', 'num': 8.2}
-# [1, {'key': 'val'}]
-# {'arr': [1, 2, 3]}
-# 
-# # variables set via @var macro
-# var.name + 5
-#
-# # function calls
-# fn1(arg1, "arg2", 3) + fn2({}, [])
-# /pre
+# Parses and evaluates statements (expressions). Can be used statically or
+# as an instance.
 module Eggshell;end
 class Eggshell::ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
@@ -98,6 +80,47 @@ class Eggshell::ExpressionEvaluator
 		end
 	end
 	
+	def initialize(vars = nil, funcs = nil)
+		@vars = vars || {}
+		@funcs = funcs || {}
+		@cache = {}
+	end
+	
+	# Registers a function for embedded expressions. Functions are grouped into namespaces,
+	# and a handler can be assigned to handle all function calls within that namespace, or
+	# a specific set of functions within the namespace. The root namespace is a blank string.
+	#
+	# @param String func_key In the form `ns` or `ns:func_name`. For functions in the 
+	# root namespace, do `:func_name`.
+	# @param Object handler
+	# @param Array func_names If `func_key` only refers to a namespace but the handler
+	# needs to only handle a subset of functions, supply the list of function names here.
+	def register_functions(func_key, handler, func_names = nil)
+		if !func_key.index(':') && func_names.is_a?(Array)
+			func_names.each do |fname|
+				@funcs[func_key+func_name] = handler
+			end
+		else
+			@funcs[func_key] = handler
+		end
+	end
+
+	attr_reader :vars, :funcs
+	
+	def parse(statement, cache = true)
+		parsed = @cache[statement]
+		return parsed if cache && parsed
+		
+		parsed = self.class.struct(statement)
+		@cache[statement] = parsed if cache
+		return parsed
+	end
+
+	def evaluate(statement, cache = true)
+		parsed = parse(statement, cache)
+		return self.class.expr_eval(parsed, @vars, @funcs)
+	end
+
 	# Normalizes a term.
 	# @param Object term If `String`, attempts to infer type (either `Fixnum`, `Float`, or `[:var, varname]`)
 	# @param Boolean preserve_str If true and input is string but not number, return string literal.
@@ -860,3 +883,7 @@ end
 
 $errs_write = 10
 $errs_write_indent = 10
+
+ee = Eggshell::ExpressionEvaluator.new
+ee.vars['hello'] = 1
+puts ee.evaluate("hello + 1")

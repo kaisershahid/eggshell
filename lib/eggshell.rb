@@ -71,6 +71,7 @@ module Eggshell
 			@blocks = @context.blocks
 			@block_params = @context.block_params
 			@expr_cache = @context.expr_cache
+			@ee = Eggshell::ExpressionEvaluator.new(@vars, @funcs)
 
 			@noop_macro = Eggshell::MacroHandler::Defaults::NoOpHandler.new
 			@noop_block = Eggshell::BlockHandler::Defaults::NoOpHandler.new
@@ -102,13 +103,7 @@ module Eggshell
 		# @param Array func_names If `func_key` only refers to a namespace but the handler
 		# needs to only handle a subset of functions, supply the list of function names here.
 		def register_functions(func_key, handler, func_names = nil)
-			if !func_key.index(':') && func_names.is_a?(Array)
-				func_names.each do |fname|
-					@funcs[func_key+func_name] = handler
-				end
-			else
-				@funcs[func_key] = handler
-			end
+			@ee.register_functions(func_key, handler, func_names)
 		end
 
 		def _error(msg)
