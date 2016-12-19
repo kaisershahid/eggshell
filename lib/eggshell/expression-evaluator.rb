@@ -883,7 +883,3 @@ end
 
 $errs_write = 10
 $errs_write_indent = 10
-
-ee = Eggshell::ExpressionEvaluator.new
-ee.vars['hello'] = 1
-puts ee.evaluate("hello + 1")
