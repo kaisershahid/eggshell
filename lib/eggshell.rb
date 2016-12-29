@@ -86,6 +86,13 @@ module Eggshell
 			end
 		end
 
+		def unregister_macro(*macros)
+			macros.each do |mac|
+				handler = @macros.delete(mac)
+				_trace "unregister_macro: #{mac}: #{handler}"
+			end
+		end
+
 		def register_block(handler, *blocks)
 			blocks.each do |block|
 				@blocks[block] = handler
