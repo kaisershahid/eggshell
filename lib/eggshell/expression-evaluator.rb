@@ -345,11 +345,18 @@ class Eggshell::ExpressionEvaluator
 				term = nil
 				term_state = nil
 			elsif tok == '{'
-				if state[-1] == :nil && stack[0][-1][0] == :fn
+				if state[-1] == :nil #&& stack[0][-1][0] == :fn
 					delim = '{'
 					while toks[i]
 						delim += toks[i]
 						i += 1
+					end
+					
+					# @todo is it safe to do stack[0]? stick to ptr instead?
+					if term
+						stack[0] << term_val(term, term_state == :quote)
+						term = nil
+						term_state = nil
 					end
 					stack[0] << [:brace_op, delim]
 					break
@@ -494,7 +501,7 @@ class Eggshell::ExpressionEvaluator
 				# look-ahead to build variable reference
 				ntok = toks[i]
 				while ntok
-					if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && !ntok.match(REGEX_OPERATORS)
+					if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && ntok != '{' && !ntok.match(REGEX_OPERATORS)
 						if ntok != ' ' && ntok != "\t"
 							term += ntok
 						end
