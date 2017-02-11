@@ -17,24 +17,30 @@
 # misc content
 # @end_block_macro
 #
-# 
 module Eggshell::MacroHandler
-	def set_processor(proc)
-	end
+	include Eggshell::BaseHandler
+	include Eggshell::ProcessHandler
 
-	def process(buffer, macname, args, lines, indent)
+	
+	COLLECT_NORMAL = :collect_normal
+	COLLECT_RAW_MACRO = :collect_raw_macro
+	COLLECT_RAW = :collect_raw
+
+	# Indicates how to process lines contained with in the macro. {{COLLECT_NORMAL}}
+	# continues to evaluate block and macro content. {{COLLECT_RAW_MACRO}} collects
+	# all lines as raw unless a macro is encountered. {{COLLECT_RAW}} collects all
+	# lines as raw, regardless of nested macros.
+	# @todo needed?
+	def collection_type(macro)
+		COLLECT_NORMAL
 	end
 
 	module Defaults
 		class NoOpHandler
 			include Eggshell::MacroHandler
 
-			def set_processor(proc)
-				@proc = proc
-			end
-
-			def process(buffer, macname, args, lines, indent)
-				@proc._warn("couldn't find macro: #{macname}")
+			def process(name, args, lines, out, call_depth = 0)
+				@eggshell._warn("not implemented: #{macname}")
 			end
 		end	
 	end

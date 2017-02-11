@@ -1,4 +1,17 @@
 #!/usr/bin/ruby
+helptext = """
+Process Eggshell files from the command line:
+
+eggshell <source> # outputs to console
+eggshell <source> out=filename
+eggshell <source> format=format_hint
+
+Note that 'format' parameter hints at the source file (e.g. supplying 'md' loads the markdown support libraries)
+"""
+
+# @todo parse args
+# @todo set output redirect
+
 require_relative '../lib/eggshell.rb'
 
 f = ARGV[0]

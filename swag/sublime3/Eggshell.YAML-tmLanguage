@@ -8,7 +8,7 @@ uuid: 7a823ca8-8c7f-472f-9d55-760b95a87532
 patterns:
   - #comment
     name: comment.line.source.eggshell
-    match: ^\s*!#.*
+    match: ^\s*#!.*
   - # pre/bq/raw blocks get some special treatment
     name: markup.raw.block.eggshell
     begin: '(pre|bq)\.'

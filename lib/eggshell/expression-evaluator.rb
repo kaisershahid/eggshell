@@ -5,6 +5,7 @@ class Eggshell::ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
 	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
 	REGEX_OPERATORS = /\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/
+	REGEX_VARNAME = /[\w\d]+/
 
 	LOG_OP = 2
 	LOG_LEVEL = 0
@@ -501,7 +502,8 @@ class Eggshell::ExpressionEvaluator
 				# look-ahead to build variable reference
 				ntok = toks[i]
 				while ntok
-					if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && ntok != '{' && !ntok.match(REGEX_OPERATORS)
+					#if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && ntok != '{' && !ntok.match(REGEX_OPERATORS)
+					if ntok.match(REGEX_VARNAME)
 						if ntok != ' ' && ntok != "\t"
 							term += ntok
 						end
@@ -513,7 +515,7 @@ class Eggshell::ExpressionEvaluator
 				end
 			end
 		end
-
+		
 		# @todo validate completeness of state (e.g. no omitted parenthesis)
 		if state[1] || term
 			_transition.call(state[-1])
@@ -697,6 +699,7 @@ class Eggshell::ExpressionEvaluator
 	def self.expr_eval_op(op, lterm, rterm)
 		ret = nil
 		#$stderr.write "** #{lterm.inspect} ( #{op} ) #{rterm.inspect}\n"
+
 		case op
 		when '=='
 			ret = lterm == rterm

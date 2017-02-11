@@ -13,13 +13,14 @@ module Eggshell::Bundles::Loader
 	end
 
 	class LoaderMacro
+		include Eggshell::MacroHandler
 		def set_processor(proc)
 			@proc = proc
-			proc.register_macro(self, *%w(gems files bundles vars))
+			proc.add_macro_handler(self, *%w(gems files bundles vars))
 		end
 
-		def process(buffer, macname, args, lines, depth)
-			if macname == 'gems'
+		def process(type, args, lines, out, call_depth = 0)
+			if type == 'gems'
 				args.each do |gemname|
 					begin
 						require gemname
@@ -28,7 +29,7 @@ module Eggshell::Bundles::Loader
 						@proc._warn("could not load gem: #{gemname}")
 					end
 				end
-			elsif macname == 'files'
+			elsif type == 'files'
 				args.each do |file|
 					begin
 						if file[0] == '/'
@@ -45,7 +46,7 @@ module Eggshell::Bundles::Loader
 						@proc._warn("could not load file: #{file}")
 					end
 				end
-			elsif macname == 'bundles'
+			elsif type == 'bundles'
 				args.each do |bundle|
 					Eggshell::Bundles::Registry.attach_bundle(bundle, @proc.vars[:target])
 				end

@@ -1,9 +1,10 @@
 # For multiline macros, the block collects lines specific to the block (including other nested macros).
 # This allows for proper execution when dealing with loops and branches.
 class Eggshell::Block
-	def initialize(macro, handler, args, depth, delim = nil)
+	def initialize(macro, handler, args, depth, line_count, delim = nil)
 		@stack = [self]
 		@lines = []
+		@line_count = line_count
 		@macro = macro
 		@handler = handler
 		@args = args
@@ -27,7 +28,7 @@ class Eggshell::Block
 	end
 
 	# Adds a nested block to collect lines into.
-	def push(block)
+	def push(block, line_count = -1)
 		@stack[-1].lines << block
 		@stack << block
 	end
