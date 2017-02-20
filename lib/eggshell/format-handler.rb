@@ -24,14 +24,19 @@ module Eggshell::FormatHandler
 		# piped args are key-value pairs (use `\\|` to escape) which might
 		# be embedded in the tag or signal some further transformations.
 		#
-		# @param Boolean no_arg0 If true, doesn't try to split first portion of {{arg_str}}
-		# on ` ; `.
+		# If any contexts don't use direct arguments, set {{no_direct}} to `true`.
+		# This will produce a 1-element array with a map.
+		#
+		# @param String arg_str A pipe-separated argument list, with first argument
+		# interpreted as a direct arguments list.
+		# @param Boolean no_direct If true, doesn't treat first argument as direct
+		# arguments.
 		# @return An array where the last element is always a {{Hash}}
-		def parse_args(arg_str, no_arg0 = false)
+		def parse_args(arg_str, no_direct = false)
 			return [] if !arg_str || arg_str == ''
 			raw_args = arg_str.split(/(?<!\\)\|/)
 			args = []
-			args << raw_args.shift.split(/ ; /) if !no_arg0
+			args << raw_args.shift.split(/ ; /) if !no_direct
 			map = {}
 			raw_args.each do |rarg|
 				k, v = rarg.split('=', 2)

@@ -24,6 +24,11 @@ module Eggshell::Bundles
 	# Maintains central registry of bundles.
 	class Registry
 		@@reg = {}
+		@@log_level = 0
+
+		def self.log_level(lvl)
+			@@log_level = lvl
+		end
 
 		def self.register_bundle(bundle, id)
 			if !bundle.respond_to?(:new_instance)
@@ -33,7 +38,7 @@ module Eggshell::Bundles
 
 			if !@@reg[id]
 				@@reg[id] = bundle
-				$stderr.write "registering bundle #{id} => #{bundle}\n"
+				$stderr.write "registering bundle #{id} => #{bundle}\n" if @@log_level > 0
 			else
 				$stderr.write "registering bundle failed: #{id} already registered\n"
 			end

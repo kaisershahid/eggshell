@@ -1,5 +1,9 @@
 # Eggshell.
 module Eggshell
+	VERSION_MAJOR = 1
+	VERSION_MINOR = 0
+	VERSION_PATCH = 1
+	VERSION = "#{VERSION_MAJOR}.#{VERSION_MINOR}.#{VERSION_PATCH}"
 	# Encapsulates core parts of a line. Handler can use whatever parts are needed to 
 	# construct final output. Line number is provided for error reporting.
 	class Line

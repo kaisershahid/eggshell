@@ -1,8 +1,14 @@
 #!/usr/bin/ruby
-helptext = """
-Process Eggshell files from the command line:
+require_relative '../lib/eggshell.rb'
 
+helptext = """Eggshell (ver. #{Eggshell::VERSION})
+#{'-'*80}
+eggshell -h # this
+eggshell -docs # outputs path of sample documents
 eggshell <source> # outputs to console
+"""
+
+helptext_v2 = """
 eggshell <source> out=filename
 eggshell <source> format=format_hint
 
@@ -12,13 +18,25 @@ Note that 'format' parameter hints at the source file (e.g. supplying 'md' loads
 # @todo parse args
 # @todo set output redirect
 
-require_relative '../lib/eggshell.rb'
+if ARGV[0] == '-h'
+	puts helptext
+	exit
+elsif ARGV[0] == '-docs'
+	puts "Eggshell (ver. #{Eggshell::VERSION})", '-'*80, "Example docs are located at:"
+	puts "\t#{File.realpath(File.dirname(__FILE__))}/doc"
+	exit
+end
+
+$stderr.write "Eggshell (ver. #{Eggshell::VERSION})\n#{'-'*80}\n"
 
 f = ARGV[0]
 if !f || !File.exists?(f)
 	puts "Invalid file: #{f}"
+	puts "use '-h' to show usage"
 	exit
 end
+
+Eggshell::Bundles::Registry.log_level(1)
 
 file_dir = File.realdirpath(File.dirname(f))
 $eggshell = Eggshell::Processor.new

@@ -1,0 +1,68 @@
+Implied paragraph. [*Bold*]
+
+#! comment
+
+p. Explicit paragraph. [/Italic/] and [__underline__].
+
+div({'class':'classname', 'id':'mydiv', 'style':{'color':'red'}, \
+	'attributes': {'onclick': 'alert(1);'}}). DIV with a class, id, style, and extra attributes.
+Also shows line continuation.
+
+pre. pre-formatted
+text here
+    indent (4 spaces)
+	indent (1 tab)
+\
+hard line break above, still part of P R E
+
+- unordered list item
+- another list item
+	# ordered sublist
+	- still ordered sublist
+- list item
+
+table.
+!caption:Caption Text|style=background: yellow
+!col:style=color: red
+/Header 1|Header 2
+|Column 1|Column 2
+|Column 1|Column 2
+/Footer 1|Footer 2
+
+@raw {
+This is a macro. Macros have different purposes and different semantics. Refer to documentation for each.
+	@raw {
+		Macros can be nested.
+	}
+}
+
+@raw('arg1', ['arg2.1', 'arg2.2']) {
+Macro with arguments.
+}
+
+#! macro with no body
+@include('nil')
+
+pre. ADVANCED STUFF
+piping macro inline ->*<- and then piping via appending
+@raw {
+INLINE_PIPE
+}
+@raw {
+	APPEND_PIPE
+}
+
+more inline piping: ->*<- | ->*<-
+@raw {
+1
+}
+@raw {
+2
+}
+
+# demonstrating a list being built up dynamically with @for
+@for({'items': [1,2,3]}) {
+	- ${item}
+		- ${item+1}.1
+		- ${item+1}.2
+}
