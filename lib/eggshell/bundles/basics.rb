@@ -134,6 +134,8 @@ module Eggshell::Bundles::Basic
 
 	"""
 	/head|head
+	!caption:caption text|att=val|att=val
+	!col:att=val|att=val
 	|col|col|col
 	|>col|>col|>col
 	|!@att=val att2=val2@!col|col
@@ -143,22 +145,25 @@ module Eggshell::Bundles::Basic
 		include BH
 		include BH::BlockParams
 		include BH::HtmlUtils
+		include FH::Utils
 		
 		def initialize
 			@block_types = ['table']
 		end
 
 		# @todo support opening row with !@ (which would then get applied to <tr>)
+		# @todo support thead/tbody/tfoot attributes? maybe these things can be handled same as how caption/colgroup is defined
 		DELIM1 = '|'
 		DELIM2 = '|>'
 		HEADER = '/'
+		SPECIAL_DEF = /^!(\w+):(.+$)/
 		CELL_ATTR_START = '!@'
 		CELL_ATTR_IDX = 1
 		CELL_ATTR_END = '@!'
 
 		def can_handle(line)
 			if !@block_type
-				if line.match(/^(table[(.]?|\||\|>|\/)/)
+				if line.match(/^(table[(.]?|\||\|>|\/)/) || line.match(SPECIAL_DEF)
 					@block_type = 'table'
 					return BH::COLLECT
 				end
@@ -167,7 +172,7 @@ module Eggshell::Bundles::Basic
 		end
 
 		def continue_with(line)
-			if line.match(/^(\||\|>|\/)/)
+			if line.match(/^(\||\|>|\/)/) || line.match(SPECIAL_DEF)
 				return BH::COLLECT
 			end
 			return BH::RETRY
@@ -179,34 +184,58 @@ module Eggshell::Bundles::Basic
 			bp = get_block_params(type, args[0])
 			row_classes = bp['row.classes']
 			row_classes = ['odd', 'even'] if !row_classes.is_a?(Array)
+			
+			o_out = out
+			out = []
 
 			@eggshell.vars[T_ROW] = 0
 			out << create_tag('table', bp)
+			out << "%caption%\n%colgroup%"
+			caption = {:text => '', :atts => {}}
+			colgroup = []
+
 			cols = []
 			rows = 0
 			rc = 0
+			data_started = false
+
 			lines.each do |line_obj|
 				ccount = 0
 				line = line_obj.line
-				if line[0] == '/' && rows == 0
+				special = line.match(SPECIAL_DEF)
+				if special
+					type = special[1]
+					atts = special[2]
+					if type == 'caption'
+						text, atts = atts.split('|', 2)
+						caption[:text] = text
+						caption[:attributes] = parse_args(atts, true)[0]
+					else
+						atts = parse_args(atts, true)[0]
+						puts atts.inspect
+						colgroup << create_tag('col', attrib_string(atts), false)
+					end
+				elsif line[0] == '/' && rc == 0
 					cols = line[1..line.length].split('|')
-					out << "<thead><tr class='#{map['head.class']}'>"
+					out << "<thead><tr class='#{bp['head.class']}'>"
 					cols.each do |col|
 						out << "\t#{fmt_cell(col, true, ccount)}"
 						ccount += 1
 					end
 					out << '</tr></thead>'
-					out << '<tbody>'
 				elsif line[0] == '/'
 					# implies footer
+					out << '</tbody>' if rc > 0
 					cols = line[1..line.length].split('|')
-					out << "<tfoot><tr class='#{map['foot.class']}'>"
+					out << "<tfoot><tr class='#{bp['foot.class']}'>"
 					cols.each do |col|
 						out << "\t#{fmt_cell(col, true, ccount)}"
 						ccount += 1
 					end
 					out << '</tr></tfoot>'
+					break
 				elsif line[0] == DELIM1 || line[0..1] == DELIM2
+					out << '<tbody>' if rc == 0
 					idx = 1
 					sep = /(?<!\\)\|/
 					if line[1] == '>'
@@ -229,11 +258,21 @@ module Eggshell::Bundles::Basic
 				rows += 1
 			end
 
-			out << '</tbody>'
-			if cols.length > 0
-				# @todo process footer
-			end
 			out << "</table>"
+
+			if caption[:text] != ''
+				out[1].gsub!('%caption%', create_tag('caption', attrib_string(caption[:attributes]), true, caption[:text]))
+			else
+				out[1].gsub!("%caption%\n", '')
+			end
+
+			if colgroup.length > 0
+				out[1].gsub!('%colgroup%', "<colgroup>\n\t#{colgroup.join("\n\t")}\n</colgroup>")
+			else
+				out[1].gsub("%colgroup%\n", '')
+			end
+			
+			o_out << out.join("\n")
 		end
 
 		def fmt_cell(val, header = false, colnum = 0)

@@ -145,13 +145,27 @@ module Eggshell::BlockHandler
 
 	# Useful methods for generating HTML tags
 	module HtmlUtils
-		def create_tag(tag, attribs, open = true)
-			nattribs = attribs.is_a?(Hash) ? attribs.clone : {}
-			if nattribs[BlockParams::STYLE].is_a?(Hash)
-				nattribs[BlockParams::STYLE] = css_string(nattribs[BlockParams::STYLE])
+		def create_tag(tag, attribs, open = true, body = nil)
+			str_attribs = ''
+			if attribs.is_a?(String)
+				str_attribs = attribs
+			else
+				nattribs = attribs.is_a?(Hash) ? attribs.clone : {}
+				if nattribs[BlockParams::STYLE].is_a?(Hash)
+					nattribs[BlockParams::STYLE] = css_string(nattribs[BlockParams::STYLE])
+				end
+				str_attribs = attrib_string(nattribs, BlockParams::KEYS)
 			end
 
-			"<#{tag}#{attrib_string(nattribs, BlockParams::KEYS)}#{open ? '' : '/'}>"
+			if !open
+				return "<#{tag}#{str_attribs}/>"
+			else
+				if body
+					return "<#{tag}#{str_attribs}>#{body}</#{tag}>"
+				else
+					return "<#{tag}#{str_attribs}>"
+				end
+			end
 		end
 
 		def attrib_string(map, keys = nil)

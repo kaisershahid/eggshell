@@ -241,6 +241,9 @@ module Eggshell
 		end
 
 		BH = Eggshell::BlockHandler
+		
+		COMMENT = '#!'
+		DIRECTIVE = '#>'
 
 		def preprocess(lines, line_count = 0)
 			line_start = line_count
@@ -271,7 +274,7 @@ module Eggshell
 					line_count += 1
 
 					hdr = oline.lstrip[0..1]
-					if hdr == '#!'
+					if hdr == COMMENT
 						next
 					end
 
@@ -527,6 +530,7 @@ module Eggshell
 		# 
 		# @param Array tags Each entry should be a 2- or 3-element array in the
 		# following form: {{[open, close[, non_nest]]}}
+		# @todo if opening tag is regex, don't escape (but make sure it doesn't contain {{^}} or {{$}})
 		def add_format_handler(handler, tags)
 			return if !tags.is_a?(Array)
 			

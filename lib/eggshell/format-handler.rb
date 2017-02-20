@@ -11,7 +11,7 @@ module Eggshell::FormatHandler
 		end
 	end
 
-	# @param String tag The opening delimeter.
+	# @param String|MatchData tag The opening delimeter.
 	# @param String str The string between delimeters.
 	def format(tag, str)
 	end
@@ -24,10 +24,14 @@ module Eggshell::FormatHandler
 		# piped args are key-value pairs (use `\\|` to escape) which might
 		# be embedded in the tag or signal some further transformations.
 		#
+		# @param Boolean no_arg0 If true, doesn't try to split first portion of {{arg_str}}
+		# on ` ; `.
 		# @return An array where the last element is always a {{Hash}}
-		def parse_args(arg_str)
+		def parse_args(arg_str, no_arg0 = false)
+			return [] if !arg_str || arg_str == ''
 			raw_args = arg_str.split(/(?<!\\)\|/)
-			args = raw_args.shift.split(/ ; /)
+			args = []
+			args << raw_args.shift.split(/ ; /) if !no_arg0
 			map = {}
 			raw_args.each do |rarg|
 				k, v = rarg.split('=', 2)
