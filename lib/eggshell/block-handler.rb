@@ -83,6 +83,12 @@ module Eggshell::BlockHandler
 			RETRY
 		end
 	end
+	
+	# Useful for pipeline chains in the form `block-macro*-block`. This checks if
+	# the current block handler/type is equivalent to the block that's being pipelined.
+	def equal?(handler, type)
+		false
+	end
 
 	module Defaults
 		class NoOpHandler

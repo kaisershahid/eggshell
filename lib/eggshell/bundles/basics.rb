@@ -269,7 +269,7 @@ module Eggshell::Bundles::Basic
 			if colgroup.length > 0
 				out[1].gsub!('%colgroup%', "<colgroup>\n\t#{colgroup.join("\n\t")}\n</colgroup>")
 			else
-				out[1].gsub("%colgroup%\n", '')
+				out[1].gsub!('%colgroup%', '')
 			end
 			
 			o_out << out.join("\n")
@@ -405,6 +405,10 @@ module Eggshell::Bundles::Basic
 				end
 				out << @eggshell.expand_all(order_stack.join("\n"))
 			end
+		end
+		
+		def equal?(handler, type)
+			self.class == handler.class && (type == 'ol' || type == 'ul')
 		end
 	end
 
@@ -588,7 +592,7 @@ module Eggshell::Bundles::Basic
 				link, alt = args
 				link = '' if !link
 				alt = '' if !alt
-				
+
 				atts[akey]['src'] = link if link != ''
 				atts[akey]['alt'] = alt if alt != ''
 				tagname = 'img'
@@ -597,11 +601,7 @@ module Eggshell::Bundles::Basic
 				tagname = TAG_MAP[tag]
 			end
 
-			if tagopen
-				return "#{create_tag(tagname, atts)}#{text}</#{tagname}>"
-			else
-				return create_tag(tagname, atts, false)
-			end
+			return create_tag(tagname, atts, tagopen, text)
 		end
 	end
 

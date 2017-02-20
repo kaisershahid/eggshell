@@ -428,9 +428,11 @@ module Eggshell
 				if unit.is_a?(String)
 					out << unit
 					last_line += 1
+					last_type = nil
 				elsif unit.is_a?(Eggshell::Line)
 					out << unit.to_s
 					last_line = unit.line_nameum
+					last_type = nil
 				elsif unit.is_a?(Array)
 					handler = unit[0] == :block ? @blocks_map[unit[1]] : @macros[unit[1]]
 					name = unit[1]
@@ -457,8 +459,7 @@ module Eggshell
 							# two cases:
 							# 1. this block is immediately tied to block-macro chain and is continuation of same type of block
 							# 2. part of block-macro chain but not same type, or immediately follows another block
-
-							if last_type == :macro && (lines_end - last_line == 1) && _name == name
+							if last_type == :macro && (lines_start - last_line <= 1) && _handler.equal?(handler, name)
 								lines.each do |line|
 									_lines << line
 								end
@@ -507,6 +508,7 @@ module Eggshell
 				elsif unit
 					_warn "not sure how to handle #{unit.class}"
 					_debug unit.inspect
+					last_type = nil
 				end
 			end
 
@@ -577,7 +579,8 @@ module Eggshell
 					quote = nil if tok == quote
 					buff[-1] += tok
 				elsif tok == '"' || tok == "'"
-					quote = tok if opened[-1]
+					# only open quote if there's whitespace or blank string preceeding it
+					quote = tok if opened[-1] && (!buff[-1] || buff[-1] == '' || buff[-1].match(/\s$/))
 					buff[-1] += tok
 				elsif @fmt_handlers[tok] && (!non_nesting[-1] || non_nesting.index(tok))
 					handler, closer, non_nest = @fmt_handlers[tok]
@@ -603,6 +606,7 @@ module Eggshell
 				bstr = buff.pop
 				buff[-1] += op + bstr
 				_warn "expand_formatting: unclosed #{op}, not doing anything: #{bstr}"
+				#_warn toks.inspect
 			end
 
 			buff.join('')

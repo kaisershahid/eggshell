@@ -36,7 +36,7 @@ module Eggshell::FormatHandler
 			return [] if !arg_str || arg_str == ''
 			raw_args = arg_str.split(/(?<!\\)\|/)
 			args = []
-			args << raw_args.shift.split(/ ; /) if !no_direct
+			args += raw_args.shift.split(/ ; /) if !no_direct
 			map = {}
 			raw_args.each do |rarg|
 				k, v = rarg.split('=', 2)
