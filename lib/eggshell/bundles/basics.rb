@@ -607,8 +607,12 @@ module Eggshell::Bundles::Basic
 
 	# These macros are highly recommended to always be part of an instance of the processor.
 	#
-	# {{!}} sets default parameter values (block parameters) so that they don't have to be
+	# dl.
+	# {{!}}:: sets default parameter values (block parameters) so that they don't have to be
 	# specified for every block instance.
+	# {{raw}}:: passes all block lines up into output chain. Macros are assembled before being
+	# outputted.
+	# {{pipe}}:: allows blocks to pipe into the adjacent block
 	#
 	# {{process}} always dynamic processing of content. This allows previous macros to build
 	# up a document dynamically.
@@ -622,7 +626,7 @@ module Eggshell::Bundles::Basic
 			opts = {} if !opts
 			@opts = opts
 			@eggshell = proc
-			@eggshell.add_macro_handler(self, '=', '!', 'process', 'capture', 'raw')
+			@eggshell.add_macro_handler(self, '=', '!', 'process', 'capture', 'raw', 'pipe')
 			@eggshell.add_macro_handler(self, 'include') if !@opts['macro.include.off']
 			@vars = @eggshell.vars
 
@@ -681,12 +685,14 @@ module Eggshell::Bundles::Basic
 								out << line.to_s
 							end
 						else
-							out << @eggshell.assemble(unit)
+							out << @eggshell.assemble(unit, call_depth + 1)
 						end
 					else
 						out << line
 					end
 				end
+			elsif name == 'pipe'
+				out << @eggshell.assemble(lines, call_depth + 1)
 			end
 		end
 		
