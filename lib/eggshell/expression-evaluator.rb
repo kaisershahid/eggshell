@@ -1,11 +1,11 @@
 # Parses and evaluates statements (expressions). Can be used statically or
 # as an instance.
-module Eggshell;end
-class Eggshell::ExpressionEvaluator
+module Eggshell; class ExpressionEvaluator
 	REGEX_EXPR_PLACEHOLDERS = /(\\|\$\[|\$\{|\]|\}|\+|\-|>|<|=|\s+|\(|\)|\*|\/`)/
 	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
 	REGEX_OPERATORS = /\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/
-	REGEX_VARNAME = /[\w\d]+/
+	REGEX_VARNAME = /[\w\d_]+/
+	REGEX_VARNAME_START = /^[@\$]?[_a-zA-Z][\w\d_]*$/
 
 	LOG_OP = 2
 	LOG_LEVEL = 0
@@ -486,13 +486,13 @@ class Eggshell::ExpressionEvaluator
 				# @todo more appropriate way to push stack? otherwise fn(1 + 2 + 3) gets 1 too many :op
 				state << :op if state[-1] != :op
 				_op_push.call(tok)
-			elsif tok != ''
-				# white space; close out state
-				if tok.strip == ''
-					_transition.call(state[-1]) if term
-					next
-				end
-
+			elsif tok.strip != ''
+				# # white space; close out state
+				# if tok.strip == ''
+				# 	_transition.call(state[-1]) if term
+				# 	next
+				# end
+				
 				if !term
 					term = tok
 				else
@@ -501,17 +501,60 @@ class Eggshell::ExpressionEvaluator
 				
 				# look-ahead to build variable reference
 				ntok = toks[i]
+				i_start = i - 1
+				found_space = false
+				brack_count = 0
+				in_bracket = false
 				while ntok
-					#if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && ntok != '{' && !ntok.match(REGEX_OPERATORS)
-					if ntok.match(REGEX_VARNAME)
-						if ntok != ' ' && ntok != "\t"
-							term += ntok
+					# @todo need to put this into main token check to deal with more complex states
+					if ntok.strip == '' && ntok.length > 0
+						if !in_bracket
+							found_space = true
 						end
-						i += 1
-						ntok = toks[i]
-					else
+					elsif ntok == '['
+						if !term.match(REGEX_VARNAME_START)
+							break
+						end
+						brack_count += 1
+						in_bracket = true
+						term += ntok
+						char_pos += ntok.length
+					elsif ntok == ']'
+						if !term.match(REGEX_VARNAME_START)
+							break
+						end
+						in_bracket = false
+						term += ntok
+						char_pos += ntok.length
+					elsif ntok.match(REGEX_VARNAME)
+						if found_space
+							raise Exception.new("invalid sequence (#{char_pos}): #{term}#{ntok}\ncomplete expression: #{str}")
+						end
+						term += ntok
+						char_pos += ntok.length
+					elsif ntok == '"' || ntok == "'"
+						if !in_bracket
+							raise Exception.new("invalid sequence (#{char_pos}): #{term}#{ntok}\ncomplete expression: #{str}")
+						end
+						
+						term += ntok
+						char_pos += ntok.length
+					elsif !in_bracket && (ntok == ',' || ntok == '(' || ntok == ')' || ntok == ':' || ntok == '{' || ntok == '}' || ntok.match(REGEX_OPERATORS))
 						break
 					end
+					i += 1
+					ntok = toks[i]
+						
+					# #if ntok != ',' && ntok != ':' && ntok != '(' && ntok != ')' && ntok != '}' && ntok != '{' && !ntok.match(REGEX_OPERATORS)
+					# if ntok.match(REGEX_VARNAME) || ntok == '[' || ntok == ']'
+					# 	if ntok != ' ' && ntok != "\t"
+					# 		term += ntok
+					# 	end
+					# 	i += 1
+					# 	ntok = toks[i]
+					# else
+					# 	break
+					# end
 				end
 			end
 		end
@@ -889,7 +932,10 @@ class Eggshell::ExpressionEvaluator
 		return if lvl < $errs_write
 		$stderr.write "[#{lvl}]#{'  ' * ($errs_write_indent-lvl)}#{str}\n"
 	end
-end
+end; end
 
 $errs_write = 10
 $errs_write_indent = 10
+
+#puts Eggshell::ExpressionEvaluator.struct("z({'a': 1})").inspect
+#puts Eggshell::ExpressionEvaluator.struct("@something (1, 2, [3 ,3,3], {'a': 'b', x: 2})").inspect

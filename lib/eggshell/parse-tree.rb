@@ -11,6 +11,7 @@
 # ]
 class Eggshell::ParseTree
 	BH = Eggshell::BlockHandler
+	MH = Eggshell::MacroHandler
 
 	IDX_TYPE = 0
 	IDX_NAME = 1
@@ -42,11 +43,11 @@ class Eggshell::ParseTree
 			@macro_open << line
 			@macro_ptr << @ptr
 			# set ptr to entry's tree
-			entry = [:macro, macro, args, [], line_start]
+			entry = [:macro, macro, args, [], line_start, line_start]
 			@ptr << entry
 			@ptr = entry[IDX_LINES]
 		else
-			@ptr << [:macro, macro, args, [], line_start]
+			@ptr << [:macro, macro, args, [], line_start, line_start]
 		end
 	end
 	
@@ -82,7 +83,7 @@ class Eggshell::ParseTree
 				mode = :block
 			end
 		else
-			@ptr << [:block, type, args, [nline], line_start]
+			@ptr << [:block, type, args, [nline], line_start, line_start]
 		end
 	end
 
@@ -145,5 +146,42 @@ class Eggshell::ParseTree
 				out.write "#{'  '*indent}#{row.inspect} ?\n"
 			end
 		end
+	end
+	
+	# Groups together chained macros. This ensures proper block-chain flow. Note that
+	# a related sequence is grouped within a {{pipe}} macro.
+	def self.condense(processor, units)
+		condensed  = []
+
+		last_macro = nil
+		units.each do |unit|
+			if !unit.is_a?(Array) || unit[0] == :block
+				condensed << unit
+			else
+				chain_type, chain_macro = processor.get_macro_handler(unit[1]).chain_type(unit[1])
+				if chain_type != MH::CHAIN_NONE
+					if chain_type == MH::CHAIN_START
+						unit[3] = condense(processor, unit[3])
+						condensed << [:macro, 'pipe', [{'chained'=>chain_macro}], [unit], unit[4], -1]
+						last_macro = unit[1]
+					elsif chain_type == MH::CHAIN_CONTINUE && chain_macro == last_macro
+						unit[3] = condense(processor, unit[3])
+						condensed[-1][3] << unit
+					elsif chain_type == MH::CHAIN_END && chain_macro == last_macro
+						unit[3] = condense(processor, unit[3])
+						condensed[-1][3] << unit
+						condensed[-1][5] = unit[5]
+						last_macro = nil
+					else
+						condensed << unit
+						last_macro = nil
+					end
+				else
+					condensed << unit
+				end
+			end
+		end
+
+		condensed
 	end
 end

@@ -1,7 +1,7 @@
 module Eggshell
 	class Processor
-		BLOCK_MATCH = /^([a-z0-9_-]+\.)/
-		BLOCK_MATCH_PARAMS = /^([a-z0-9_-]+)\(/
+		BLOCK_MATCH = /^([a-zA-Z_][a-z0-9_-]*\.)/
+		BLOCK_MATCH_PARAMS = /^([a-zA-Z_][a-z0-9_-]*)\s*\(/
 
 		def initialize
 			@context = Eggshell::ProcessorContext.new
@@ -29,6 +29,10 @@ module Eggshell
 			end
 		end
 		
+		def get_block_handler(name)
+			@blocks_map[name]
+		end
+		
 		def rem_block_handler(*names)
 			_trace "rem_block_handler: #{names.inspect}"
 			names.each do |name|
@@ -42,6 +46,10 @@ module Eggshell
 			names.each do |name|
 				@macros[name] = handler
 			end
+		end
+		
+		def get_macro_handler(name)
+			@macros[name]
 		end
 		
 		def rem_macro_handler(*names)
@@ -187,41 +195,6 @@ module Eggshell
 
 		TAB = "\t"
 		TAB_SPACE = '    '
-
-		# @param Boolean is_default If true, associates these parameters with the 
-		# `block_type` used in `get_block_param()` or explicitly in third parameter.
-		# @param String block_type
-		def set_block_params(params, is_default = false, block_type = nil)
-			if block_type && is_default
-				@block_params[block_type] = params
-			else
-				@block_params[:pending] = params
-				@block_param_default = is_default
-			end
-		end
-
-		# Gets the block parameters for a block type, and merges default values if available.
-		def get_block_params(block_type)
-			bp = @block_params.delete(:pending)
-			if @block_params_default
-				if block_type && bp
-					@block_params[block_type] = bp if bp
-				end
-				@block_params_default = false
-				bp = {} if !bp
-			else
-				bp = {} if !bp
-				default = @block_params[block_type]
-				if default
-					default.each do |key,val|
-						if !bp.has_key?(key) && val
-							bp[key] = val.clone
-						end
-					end
-				end
-			end
-			return bp
-		end
 
 		# Sets the default output object. Must support {{<<}} and {{join(String)}}.
 		#
@@ -417,11 +390,11 @@ module Eggshell
 			joiner = opts[:join] || "\n"
 
 			parse_tree = parse_tree.tree if parse_tree.is_a?(Eggshell::ParseTree)
-			raise Exception.new("input not an array or ParseTree (depth=#{call_depth}") if !parse_tree.is_a?(Array)
-			# @todo defer process to next unit so macro can inject lines back into previous block
-			
+			raise Exception.new("input not an array or ParseTree (depth=#{call_depth})") if !parse_tree.is_a?(Array)
+
 			last_type = nil
 			last_line = 0
+			last_macro = nil
 			deferred = nil
 
 			parse_tree.each do |unit|
@@ -451,7 +424,6 @@ module Eggshell
 					lines = unit[ParseTree::IDX_LINES]
 					lines_start = unit[ParseTree::IDX_LINES_START]
 					lines_end = unit[ParseTree::IDX_LINES_END]
-
 					_handler, _name, _args, _lines = deferred
 
 					if unit[0] == :block
@@ -522,7 +494,7 @@ module Eggshell
 
 		def process(lines, line_count = 0, call_depth = 0)
 			parse_tree = preprocess(lines, line_count)
-			assemble(parse_tree.tree, call_depth)
+			assemble(Eggshell::ParseTree.condense(self, parse_tree.tree), call_depth)
 		end
 
 		# Register inline format handlers with opening and closing tags.
@@ -619,7 +591,7 @@ module Eggshell
 			bt = line.match(BLOCK_MATCH_PARAMS)
 			if bt
 				idx0 = bt[0].length
-				idx1 = line.index(').', idx0)
+				idx1 = line.index(')', idx0)
 				if idx1
 					block_type = line[0..idx0-2]
 					params = line[0...idx1+1].strip

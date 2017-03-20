@@ -106,6 +106,7 @@ module Eggshell::Bundles::Basic
 			if type == 'html_pass' || type == 'html_block'
 				out << @eggshell.expand_expr(lines.join("\n"))
 			else
+				# @todo if pre starts with blank line, remove it
 				tagname = type == 'bq' ? 'blockquote' : type
 				args = [] if !args
 				bp = get_block_params(type, args[0])
@@ -782,6 +783,18 @@ module Eggshell::Bundles::Basic
 			@state = []
 			# @todo set loop limits from opts or defaults
 		end
+		
+		def chain_type(name)
+			if name == 'if'
+				return [MH::CHAIN_START, name]
+			elsif name == 'elsif'
+				return [MH::CHAIN_CONTINUE, 'if']
+			elsif name == 'else'
+				return [MH::CHAIN_END, 'if']
+			end
+			
+			[MH::CHAIN_NONE, nil]
+		end
 
 		def process(name, args, lines, out, call_depth = 0)
 			macname = name.to_sym
@@ -900,7 +913,7 @@ module Eggshell::Bundles::Basic
 				end
 
 				last_action = st[:last_action]
-				st[:last_action] = macname.to_sym
+				st[:last_action] = macname
 
 				# @todo more checks (e.g. no elsif after else, no multiple else, etc.)
 				if !st[:if] || (macname != :else && !cond)
@@ -910,8 +923,9 @@ module Eggshell::Bundles::Basic
 
 				if macname != :else
 					if !st[:cond_eval]
-						cond_struct = Eggshell::ExpressionEvaluator.struct(cond)
-						st[:cond_eval] = @eggshell.expr_eval(cond_struct)
+						#cond_struct = Eggshell::ExpressionEvaluator.struct(cond)
+						st[:cond_eval] = @eggshell.expr_eval(cond)
+						#puts "#{cond.inspect} => #{st[:cond_eval]}"
 					end
 				else
 					st[:cond_eval] = true

@@ -21,7 +21,6 @@ module Eggshell::MacroHandler
 	include Eggshell::BaseHandler
 	include Eggshell::ProcessHandler
 
-	
 	COLLECT_NORMAL = :collect_normal
 	COLLECT_RAW_MACRO = :collect_raw_macro
 	COLLECT_RAW = :collect_raw
@@ -33,6 +32,19 @@ module Eggshell::MacroHandler
 	# @todo needed?
 	def collection_type(macro)
 		COLLECT_NORMAL
+	end
+
+	CHAIN_NONE = 0
+	CHAIN_START = 1
+	CHAIN_CONTINUE = 2
+	CHAIN_END = 3
+
+	# If a sequence of macros are related by conditional execution (if/elsif/else, for instance),
+	# this provides a hint to the processor in how to group and evaluate the macros.
+	#
+	# @return Array In the form `[CHAIN_TYPE, MACRO_START]`
+	def chain_type(macro)
+		[CHAIN_NONE, nil]
 	end
 
 	module Defaults
