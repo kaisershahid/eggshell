@@ -164,7 +164,7 @@ module Eggshell::Bundles::Basic
 
 		def can_handle(line)
 			if !@block_type
-				if line.match(/^(table[(.]?|\||\|>|\/)/) || line.match(SPECIAL_DEF)
+				if line.match(/^(table[(.]?|\||\|>|\/|!@)/) || line.match(SPECIAL_DEF)
 					@block_type = 'table'
 					return BH::COLLECT
 				end
@@ -173,7 +173,7 @@ module Eggshell::Bundles::Basic
 		end
 
 		def continue_with(line)
-			if line.match(/^(\||\|>|\/)/) || line.match(SPECIAL_DEF)
+			if line.match(/^(\||\|>|\/|!@)/) || line.match(SPECIAL_DEF)
 				return BH::COLLECT
 			end
 			return BH::RETRY
@@ -220,6 +220,10 @@ module Eggshell::Bundles::Basic
 					cols = line[1..line.length].split('|')
 					out << "<thead><tr class='#{bp['head.class']}'>"
 					cols.each do |col|
+						col = col.strip
+						if col == '' && bp['emptycell']
+							col = bp['emptycell']
+						end
 						out << "\t#{fmt_cell(col, true, ccount)}"
 						ccount += 1
 					end
@@ -230,14 +234,29 @@ module Eggshell::Bundles::Basic
 					cols = line[1..line.length].split('|')
 					out << "<tfoot><tr class='#{bp['foot.class']}'>"
 					cols.each do |col|
+						col = col.strip
+						if col == '' && bp['emptycell']
+							col = bp['emptycell']
+						end
 						out << "\t#{fmt_cell(col, true, ccount)}"
 						ccount += 1
 					end
 					out << '</tr></tfoot>'
 					break
-				elsif line[0] == DELIM1 || line[0..1] == DELIM2
+				elsif line[0] == DELIM1 || line[0..1] == DELIM2 || line[0..1] == CELL_ATTR_START
 					out << '<tbody>' if rc == 0
 					idx = 1
+					rattribs = ''
+					
+					if line[0..1] == CELL_ATTR_START
+						# @todo look for delim instead of '@!'?
+						rt = line.index(CELL_ATTR_END)
+						if rt
+							rattribs = line[2...rt]
+							line = line[rt+CELL_ATTR_END.length..line.length]
+						end
+					end
+
 					sep = /(?<!\\)\|/
 					if line[1] == '>'
 						idx = 2
@@ -246,8 +265,14 @@ module Eggshell::Bundles::Basic
 					cols = line[idx..line.length].split(sep)
 					@eggshell.vars[T_ROW] = rc
 					rclass = row_classes[rc % row_classes.length]
-					out << "<tr class='tr-row-#{rc} #{rclass}'>"
+					rattribs = TableBlock.inject_class(rattribs, "tr-row-#{rc} #{rclass}")
+
+					out << "<tr #{rattribs}>"
 					cols.each do |col|
+						col = col.strip
+						if col == '' && bp['emptycell']
+							col = bp['emptycell']
+						end
 						out << "\t#{fmt_cell(col, false, ccount)}"
 						ccount += 1
 					end
@@ -292,13 +317,14 @@ module Eggshell::Bundles::Basic
 			end
 
 			# inject column position via class
-			olen = attribs.length
-			match = attribs.match(/class=(['"])([^'"]*)(['"])/)
-			if !match
-				attribs += " class='td-col-#{colnum}'"
-			else
-				attribs = attribs.gsub(match[0], "class='#{match[2]} td-col-#{colnum}'")
-			end
+			attribs = TableBlock.inject_class(attribs, "td-col-#{colnum}")
+			# olen = attribs.length
+			# match = attribs.match(/class=(['"])([^'"]*)(['"])/)
+			# if !match
+			# 	attribs += " class='td-col-#{colnum}'"
+			# else
+			# 	attribs = attribs.gsub(match[0], "class='#{match[2]} td-col-#{colnum}'")
+			# end
 
 			buff << "<#{tag} #{attribs}>"
 			cclass = 
@@ -309,6 +335,17 @@ module Eggshell::Bundles::Basic
 			buff << @eggshell.expand_formatting(val)
 			buff << "</#{tag}>"
 			return buff.join('')
+		end
+		
+		def self.inject_class(attribs, cls)
+			# inject column position via class
+			olen = attribs.length
+			match = attribs.match(/class=(['"])([^'"]*)(['"])/)
+			if !match
+				attribs += " class='#{cls}'"
+			else
+				attribs = attribs.gsub(match[0], "class='#{match[2]} #{cls}'")
+			end
 		end
 	end
 	
@@ -627,7 +664,7 @@ module Eggshell::Bundles::Basic
 			opts = {} if !opts
 			@opts = opts
 			@eggshell = proc
-			@eggshell.add_macro_handler(self, '=', '!', 'process', 'capture', 'raw', 'pipe')
+			@eggshell.add_macro_handler(self, '=', 'var', '!', 'process', 'capture', 'raw', 'pipe')
 			@eggshell.add_macro_handler(self, 'include') if !@opts['macro.include.off']
 			@vars = @eggshell.vars
 
@@ -644,7 +681,7 @@ module Eggshell::Bundles::Basic
 		end
 
 		def process(name, args, lines, out, call_depth = 0)
-			if name == '='
+			if name == '=' || name == 'var'
 				# @todo expand args[0]?
 				if args[0]
 					val = nil
@@ -829,6 +866,10 @@ module Eggshell::Bundles::Basic
 					st[:counter] = p0['counter'] || 'counter'
 
 					if st[:iter].is_a?(Array)
+						if st[:iter][0].is_a?(Symbol)
+							st[:iter] = @eggshell.expr_eval(st[:iter])
+						end
+
 						st[:start] = 0 if !st[:start]
 						st[:stop] = st[:iter].length - 1 if !st[:stop]
 						st[:step] = 1 if !st[:step]
@@ -853,12 +894,13 @@ module Eggshell::Bundles::Basic
 							@eggshell.vars[st[:counter]] = i1
 							val = i2
 						else
-							val = i1
+							val = st[:iter][i1]
 							@eggshell.vars[st[:counter]] = counter
 						end
 
 						# inject value into :item -- if it's an expression, evaluate first
-						@eggshell.vars[st[:item]] = val.is_a?(Array) && val[0].is_a?(Symbol) ? @eggshell.expr_eval(val) : val
+						iter_item = val.is_a?(Array) && val[0].is_a?(Symbol) ? @eggshell.expr_eval(val) : val
+						@eggshell.vars[st[:item]] = iter_item
 
 						# if doing raw, pass through block lines with variable expansion. preserve object type (e.g. Line or String);
 						# sub-macros will get passed collector var as output to assemble().
@@ -953,7 +995,7 @@ module Eggshell::Bundles::Basic
 				end
 			elsif macname == :next
 				lvl = p0 || 1
-				i = depth - 1
+				i = call_depth - 1
 
 				# set breaks at each found loop until # of levels reached
 				while i >= 0
