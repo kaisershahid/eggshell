@@ -158,7 +158,10 @@ class Eggshell::ParseTree
 			if !unit.is_a?(Array) || unit[0] == :block
 				condensed << unit
 			else
-				chain_type, chain_macro = processor.get_macro_handler(unit[1]).chain_type(unit[1])
+				mhandler = processor.get_macro_handler(unit[1])
+				chain_type = nil
+				chain_macro = nil
+				chain_type, chain_macro = mhandler.chain_type(unit[1]) if mhandler
 				if chain_type != MH::CHAIN_NONE
 					if chain_type == MH::CHAIN_START
 						unit[3] = condense(processor, unit[3])
