@@ -5,7 +5,7 @@ module Eggshell; class ExpressionEvaluator
 	REGEX_EXPR_STATEMENT = /(\(|\)|,|\[|\]|\+|-|\*|\/|%|<=|>=|==|<|>|"|'|\s+|\\|\{|\}|:|\?)/
 	REGEX_OPERATORS = /\+|-|\*|\/|%|<=|>=|<|>|==|!=|&&|\|\||&|\|/
 	REGEX_VARNAME = /[\w\d_]+/
-	REGEX_VARNAME_START = /^[@\$]?[_a-zA-Z][\w\d_]*$/
+	REGEX_VARNAME_START = /^[@\$]?[_a-zA-Z][\w\d_]*/
 
 	LOG_OP = 2
 	LOG_LEVEL = 0
@@ -775,6 +775,8 @@ module Eggshell; class ExpressionEvaluator
 		when '||'
 			ret = lterm || rterm
 		end
+		
+		errs "expr_eval_op: #{lterm} #{op} #{rterm} = #{ret}", 4
 		# @todo support other bitwise
 		return ret
 	end

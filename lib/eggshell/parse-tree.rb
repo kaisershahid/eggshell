@@ -31,14 +31,14 @@ class Eggshell::ParseTree
 		@ptr = @tree
 	end
 	
-	def new_macro(line_obj, line_start)
+	def new_macro(line_obj, line_start, macro, args, delim, mode)
 		line = line_obj.line
-		macro, args, delim = Eggshell::Processor.parse_macro_start(line)
+		#macro, args, delim = Eggshell::Processor.parse_macro_start(line)
 
 		push_block
 
 		if delim
-			@modes << :macro
+			@modes << (mode == MH::COLLECT_RAW_MACRO ? :macro_raw : macro)
 			@macro_delims << delim.reverse.gsub('[', ']').gsub('(', ')').gsub('{', '}')
 			@macro_open << line
 			@macro_ptr << @ptr
@@ -71,16 +71,18 @@ class Eggshell::ParseTree
 		nline = Eggshell::Line.new(line, line_obj.tab_str, line_obj.indent_lvl, line_obj.line_num)
 
 		if consume_mode != BH::DONE
-			@modes << :block
+			#@modes << :block
 			if line != ''
 				@lines << nline
 				line_start -= 1
 			end
 			@cur_block = [handler, type, args, line_start]
 			if consume_mode == BH::COLLECT_RAW
-				mode = :raw
+				#mode = :raw
+				@modes << :raw
 			else consume_mode == BH::COLLECT
-				mode = :block
+				#mode = :block
+				@modes << :block
 			end
 		else
 			@ptr << [:block, type, args, [nline], line_start, line_start]
@@ -114,6 +116,10 @@ class Eggshell::ParseTree
 		more
 	end
 	
+	def collect_macro_raw(line_obj)
+		@ptr << line_obj
+	end
+	
 	def raw_line(line_obj)
 		@ptr << line_obj
 	end
@@ -126,6 +132,10 @@ class Eggshell::ParseTree
 	
 	def mode
 		@modes[-1]
+	end
+	
+	def collect_mode
+		@collect_modes[-1]
 	end
 	
 	# Does basic output of parse tree structure to visually inspect parsed info.

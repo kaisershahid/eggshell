@@ -187,6 +187,26 @@ module Eggshell::BlockHandler
 			end
 			buff.join()
 		end
+		
+		# Given an attribute string in the form `key1="value" key2="value"` and a map containing
+		# new attribute keys, either append to attribute string or inject values into an existing
+		# attribute.
+		# @param String attribs
+		# @param Hash map
+		# @param Boolean escape If true (default), calls {@see html_escape()} on each value.
+		def inject_attribs(attribs, map = {}, escape = true)
+			map.each do |key, val|
+				key = key.to_s if key.is_a?(Symbol)
+				olen = attribs.length
+				match = attribs.match(/#{key}=(['"])([^'"]*)(['"])/)
+				if !match
+					attribs += " #{key}='#{escape ? html_escape(val) : val}'"
+				else
+					attribs = attribs.gsub(match[0], "#{key}='#{match[2]} #{escape ? html_escape(val) : val}'")
+				end
+			end
+			attribs
+		end
 
 		def css_string(map)
 			css = []

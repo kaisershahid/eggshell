@@ -13,6 +13,7 @@ module Eggshell::Bundles::Basic
 		
 		CoreMacros.new.set_processor(proc, opts)
 		ControlLoopMacros.new.set_processor(proc, opts)
+		DataLoaderMacro.new.set_processor(proc, opts)
 		
 		BasicFormatHandlers.new.set_processor(proc, opts)
 
@@ -213,7 +214,6 @@ module Eggshell::Bundles::Basic
 						caption[:attributes] = parse_args(atts, true)[0]
 					else
 						atts = parse_args(atts, true)[0]
-						puts atts.inspect
 						colgroup << create_tag('col', attrib_string(atts), false)
 					end
 				elsif line[0] == '/' && rc == 0
@@ -265,7 +265,7 @@ module Eggshell::Bundles::Basic
 					cols = line[idx..line.length].split(sep)
 					@eggshell.vars[T_ROW] = rc
 					rclass = row_classes[rc % row_classes.length]
-					rattribs = TableBlock.inject_class(rattribs, "tr-row-#{rc} #{rclass}")
+					rattribs = inject_attribs(rattribs, {:class=>"tr-row-#{rc} #{rclass}"})
 
 					out << "<tr #{rattribs}>"
 					cols.each do |col|
@@ -317,14 +317,7 @@ module Eggshell::Bundles::Basic
 			end
 
 			# inject column position via class
-			attribs = TableBlock.inject_class(attribs, "td-col-#{colnum}")
-			# olen = attribs.length
-			# match = attribs.match(/class=(['"])([^'"]*)(['"])/)
-			# if !match
-			# 	attribs += " class='td-col-#{colnum}'"
-			# else
-			# 	attribs = attribs.gsub(match[0], "class='#{match[2]} td-col-#{colnum}'")
-			# end
+			attribs = inject_attribs(attribs, {:class=>"td-col-#{colnum}"})
 
 			buff << "<#{tag} #{attribs}>"
 			cclass = 
@@ -335,17 +328,6 @@ module Eggshell::Bundles::Basic
 			buff << @eggshell.expand_formatting(val)
 			buff << "</#{tag}>"
 			return buff.join('')
-		end
-		
-		def self.inject_class(attribs, cls)
-			# inject column position via class
-			olen = attribs.length
-			match = attribs.match(/class=(['"])([^'"]*)(['"])/)
-			if !match
-				attribs += " class='#{cls}'"
-			else
-				attribs = attribs.gsub(match[0], "class='#{match[2]} #{cls}'")
-			end
 		end
 	end
 	
@@ -399,12 +381,12 @@ module Eggshell::Bundles::Basic
 				last = nil
 				first_type = nil
 
-				if lines[0] && !lines[0].line.match(/[-#]/)
+				if lines[0] && !lines[0].match(/[-#]/)
 					line = lines.shift
 				end
 
 				lines.each do |line_obj|
-					line = line_obj.line
+					line = line_obj.is_a?(Eggshell::Line) ? line_obj.line : line_obj
 					indent = line_obj.indent_lvl
 					ltype = line[0] == '-' ? 'ul' : 'ol'
 					line = line[1..line.length].strip
@@ -740,21 +722,8 @@ module Eggshell::Bundles::Basic
 			paths.each do |inc|
 				inc = inc.line if inc.is_a?(Eggshell::Line)
 				inc = @eggshell.expand_expr(inc.strip)
-				checks = []
-				if inc[0] != '/'
-					@vars[:include_paths].each do |root|
-						checks << "#{root}/#{inc}"
-					end
-					# @todo if :include_root, expand path and check that it's under the root, otherwise, sandbox
-				else
-					# sandboxed root include
-					if @eggshell.vars[:include_root]
-						checks << "#{@vars[:include_root]}#{inc}"
-					else
-						checks << inc
-					end
-				end
-				checks.each do |inc|
+
+				CoreMacros.make_include_paths(inc, @vars).each do |inc|
 					if File.exists?(inc)
 						lines = IO.readlines(inc, $/, opts)
 						@vars[:include_stack] << inc
@@ -772,6 +741,26 @@ module Eggshell::Bundles::Basic
 					end
 				end
 			end
+		end
+		
+		def self.make_include_paths(inc, opts)
+			checks = []
+			if inc[0] != '/'
+				if opts[:include_paths]
+					opts[:include_paths].each do |root|
+						checks << "#{root}/#{inc}"
+					end
+					# @todo if :include_root, expand path and check that it's under the root, otherwise, sandbox
+				end
+			else
+				# sandboxed root include
+				if opts[:include_root]
+					checks << "#{opts[:include_root]}#{inc}"
+				else
+					checks << inc
+				end
+			end
+			checks
 		end
 	end
 	
@@ -1012,5 +1001,111 @@ module Eggshell::Bundles::Basic
 		end
 	end
 	
+	# Allows you to parse and load various data formats into a variable. Data loaders
+	# are registered through class methods.
+	#
+	# Usage:
+	#
+	# pre.
+	# @dataload('json', 'varname') {/
+	# {"jsonkey": value}
+	# /}
+	# \
+	# @dataload('yaml', 'varname', 'include_file')
+	#
+	# If a file is specified for inclusion, it will be restricted to any path constraints
+	# defined by the `@include` macro.
+	class DataLoaderMacro
+		include MH
+		
+		module Loader
+			def parse(content)
+			end
+			
+			def parse_io(io)
+				parse(io.read)
+			end
+		end
+		
+		class JsonLoader
+			include Loader
+			
+			def parse(content)
+				JSON.load(content.is_a?(Array) ? content.join(' ') : content)
+			end
+		end
+		
+		class YamlLoader
+			include Loader
+			
+			def parse(content)
+				YAML.load(content.is_a?(Array) ? content.join("\n") : content)
+			end
+		end
+
+		@@handlers = {}
+
+		# Adds a data loading handler. If it's a class, should accept a null constructor.
+		def self.add_loader(type, handler)
+			@@handlers[type] = handler
+		end
+		
+		def set_processor(proc, opts = nil)
+			opts = {} if !opts
+			@opts = opts
+			@eggshell = proc
+			@eggshell.add_macro_handler(self, 'dataload')
+			@vars = @eggshell.vars
+
+			@handlers = {}
+			@@handlers.each do |type, handler|
+				if handler.is_a?(Class)
+					@handlers[type] = handler.new
+				else
+					@handlers[type] = handler
+				end
+			end
+		end
+		
+		def collection_type(macro)
+			MH::COLLECT_RAW_MACRO
+		end
+		
+		def process(name, args, lines, out, call_depth = 0)
+			type = args[0]
+			varname = args[1]
+			src = args[2]
+			if !varname
+				@eggshell._warn("@dataload: no varname specified for #{type}")
+				return
+			end
+
+			handler = @handlers[type]
+			if !handler
+				@eggshell._warn("@dataload: no handler specified for #{type}")
+				return
+			end
+
+			# @todo support external protocols (e.g. http)?
+			if src
+				paths = CoreMacros.make_include_paths(src, @eggshell.vars)
+				paths.each do |path|
+					if File.exists?(path)
+						@eggshell.vars[varname] = handler.parse_io(File.new(path))
+						break
+					end
+				end
+			else
+				raw = lines.join("\n")
+				@eggshell.vars[varname] = handler.parse(raw)
+			end
+		end
+	end
+	
 	include Eggshell::Bundles::Bundle
 end
+
+require 'json'
+
+Eggshell::Bundles::Basic::DataLoaderMacro.add_loader('json', Eggshell::Bundles::Basic::DataLoaderMacro::JsonLoader.new)
+Eggshell::Bundles::Basic::DataLoaderMacro.add_loader('yaml', Eggshell::Bundles::Basic::DataLoaderMacro::YamlLoader.new)

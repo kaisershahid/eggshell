@@ -310,11 +310,18 @@ module Eggshell
 						stat = parse_tree.collect(line_norm)
 						next if stat != BH::RETRY
 						parse_tree.push_block
+					elsif parse_tree.mode == :macro_raw
+						if !parse_tree.macro_delim_match(line_norm, line_count)
+							parse_tree.collect_macro_raw(line_norm)
+						end
+						next
 					end
 
 					# macro processing
 					if line[0] == '@'
-						parse_tree.new_macro(line_norm, line_count)
+						macro, args, delim = Eggshell::Processor.parse_macro_start(line)
+						mhandler = get_macro_handler(macro)
+						parse_tree.new_macro(line_norm, line_count, macro, args, delim, mhandler ? mhandler.collection_type(macro) : nil)
 						next
 					elsif parse_tree.macro_delim_match(line_norm, line_count)
 						next

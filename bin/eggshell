@@ -59,5 +59,6 @@ end
 # @todo parse any additional opts via command line or local project?
 
 $eggshell._info("PROCESSING #{f}")
-output = $eggshell.process(IO.readlines(f))
+# @todo check opts for encoding, default to utf-8
+output = $eggshell.process(IO.readlines(f, {:encoding => 'utf-8'}))
 puts output

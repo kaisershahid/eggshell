@@ -29,6 +29,10 @@ module Eggshell
 			Line.new(line, @tab_str, @indent_lvl, @line_num, raw)
 		end
 		
+		def match(regex)
+			@line.match(regex)
+		end
+		
 		attr_reader :line, :tab_str, :indent_lvl, :line_num
 	end
 
