@@ -105,7 +105,6 @@ module Parser
 			elsif lst == ST_STRING
 				@term_str += word
 			elsif type == :number_literal
-				puts "lst=#{lst}, comma=#{@last_comma}"
 				@term_last.pop if lst != ST_INDEX_ACCESS
 				raise Exception.new("expecting identifier after: '#{@ptr[-1][1]}'") if @expect_label
 				raise Exception.new("missing a comma after: #{expr_frag}") if !arg_check
@@ -321,7 +320,6 @@ module Parser
 					elsif lst == ST_ARRAY
 						@last_comma = true
 					elsif lst == ST_LABEL_CALL
-						puts ',,, comma'
 						@last_comma = true
 					end
 				elsif word == ';'

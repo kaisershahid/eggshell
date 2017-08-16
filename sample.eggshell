@@ -13,4 +13,13 @@ h3. Header 3
 	# ordered sublist item
 	# ordered sublist item
 
+@var("num", 5)
+@var("map", {'key': 'value', 'newInt': 4})
+h1. Expressions!!!
+
+`num = ${num}, map['newInt'] = ${map['newInt']}`
+`num - 1 = ${num - 1}`
+`num > 1 ? ${num > 1 ? 'yes' : 'no'}`
+`num - map['newInt'] = ${num - map['newInt']}`
+
 @include("path/to/another_file.eggshell")

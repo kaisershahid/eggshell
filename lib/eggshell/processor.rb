@@ -140,7 +140,7 @@ module Eggshell
 						struct = @expr_cache[expr_str]
 
 						if !struct
-							struct = Eggshell::ExpressionEvaluator.struct(expr_str)
+							struct = @ee.parse(expr_str)
 							@expr_cache[expr_str] = struct
 						end
 
@@ -422,9 +422,9 @@ module Eggshell
 					args_o = unit[2] || []
 					args = []
 					args_o.each do |arg|
-						args << expr_eval(arg)
+						args << (arg.is_a?(Array) ? @@ee.evaluate([:array, arg]) : arg)
 					end
-						
+
 					lines = unit[ParseTree::IDX_LINES]
 					lines_start = unit[ParseTree::IDX_LINES_START]
 					lines_end = unit[ParseTree::IDX_LINES_END]
@@ -602,7 +602,8 @@ module Eggshell
 					line = line[idx1+2..line.length] || ''
 					if params != ''
 						struct = @ee.parse(params)
-						args = @ee.evaluate([[:array, struct[0][2]]])
+						args = struct[0][2]
+						#args = @ee.evaluate([[:array, struct[0][2]]])
 					end
 				end
 			else
@@ -630,9 +631,10 @@ module Eggshell
 				# since the macro statement is essentially a function call, parse the line as an expression to get components
 				expr_struct = @ee.parse(line)
 				fn = expr_struct.shift
-				if fn.is_a?(Array) && (fn[0] == :fn || fn[0] == :var)
-					macro = fn[1][1..fn[1].length]
-					args = fn[2]
+
+				if fn.is_a?(Array) && (fn[0] == :func || fn[0] == :var)
+					macro = fn[1]
+					args = fn[2] # @@ee.evaluate([:array, fn[2]])
 					if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
 						delim = expr_struct[-1][1]
 					end

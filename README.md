@@ -21,9 +21,9 @@ From the command line:
 
 From code:
 
-`require 'eggshell'
+```require 'eggshell'
 eggshell = Eggshell::Processor.new
 Eggshell::Bundles::Registry.attach_bundle('basics', eggshell)
 
 html = eggshell.process(IO.readlines('path/to/file'))
-`
+```
