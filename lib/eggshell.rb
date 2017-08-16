@@ -61,6 +61,7 @@ module Eggshell
 end
 
 require_relative './eggshell/expression-evaluator.rb'
+require_relative './eggshell/expression-evaluator/lexer.rb'
 require_relative './eggshell/stream.rb'
 require_relative './eggshell/format-handler.rb'
 require_relative './eggshell/block-handler.rb'

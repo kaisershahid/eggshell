@@ -18,7 +18,8 @@ module Eggshell::Bundles::Basic
 		BasicFormatHandlers.new.set_processor(proc, opts)
 
 		#proc.register_functions('', StdFunctions::FUNC_NAMES)
-		proc.register_functions('sprintf', Kernel)
+		proc.register_functions(Kernel, 'sprintf')
+		proc.register_functions(Eggshell::Bundles::BasicFunctions, 'length,str_match,str_split,arr_push,arr_pop,arr_delete,map_put,map_delete')
 	end
 
 	class TextBlocks
@@ -1106,6 +1107,7 @@ module Eggshell::Bundles::Basic
 end
 
 require 'json'
+require_relative './basic-functions.rb'
 
 Eggshell::Bundles::Basic::DataLoaderMacro.add_loader('json', Eggshell::Bundles::Basic::DataLoaderMacro::JsonLoader.new)
 Eggshell::Bundles::Basic::DataLoaderMacro.add_loader('yaml', Eggshell::Bundles::Basic::DataLoaderMacro::YamlLoader.new)

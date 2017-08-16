@@ -1,0 +1,16 @@
+This is a basic paragraph. [*This is bold*].
+Hard line break. [/This is italic./] [__This is underline in red|style=color:red__].
+[*[__This is bold underline!|style=color:blue__]|class=bold-clas*]
+
+p({'class':'para-class','id': 'my-par-1'}). Explicit paragraph with `class` and `id` attributes.
+
+h1. Header 1
+
+h3. Header 3
+
+- unordered list item
+- unordered list item
+	# ordered sublist item
+	# ordered sublist item
+
+@include("path/to/another_file.eggshell")

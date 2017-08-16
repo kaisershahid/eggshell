@@ -2,9 +2,12 @@ module Eggshell
 	class Processor
 		BLOCK_MATCH = /^([a-zA-Z_][a-z0-9_-]*\.)/
 		BLOCK_MATCH_PARAMS = /^([a-zA-Z_][a-z0-9_-]*)\s*\(/
+		
+		@@ee = Eggshell::ExpressionEvaluator.new
 
-		def initialize
-			@context = Eggshell::ProcessorContext.new
+		def initialize(context = nil)
+			@context = context
+			@context = Eggshell::ProcessorContext.new if !context.is_a?(Eggshell::ProcessorContext)
 			@vars = @context.vars
 			@funcs = @context.funcs
 			@macros = @context.macros
@@ -14,6 +17,9 @@ module Eggshell
 			@expr_cache = @context.expr_cache
 			@fmt_handlers = @context.fmt_handlers
 			@ee = Eggshell::ExpressionEvaluator.new(@vars, @funcs)
+			
+			@vars[:include_paths] = [] if !@vars[:include_paths]
+			@vars[:include_paths] << File.realdirpath(Dir.pwd())
 
 			@noop_macro = Eggshell::MacroHandler::Defaults::NoOpHandler.new
 			@noop_block = Eggshell::BlockHandler::Defaults::NoOpHandler.new
@@ -59,17 +65,8 @@ module Eggshell
 			end
 		end
 
-		# Registers a function for embedded expressions. Functions are grouped into namespaces,
-		# and a handler can be assigned to handle all function calls within that namespace, or
-		# a specific set of functions within the namespace. The root namespace is a blank string.
-		#
-		# @param String func_key In the form `ns` or `ns:func_name`. For functions in the 
-		# root namespace, do `:func_name`.
-		# @param Object handler
-		# @param Array func_names If `func_key` only refers to a namespace but the handler
-		# needs to only handle a subset of functions, supply the list of function names here.
-		def register_functions(func_key, handler, func_names = nil)
-			@ee.register_functions(func_key, handler, func_names)
+		def register_functions(handler, names = nil, ns = '')
+			@ee.register_functions(handler, names, ns)
 		end
 
 		def _error(msg)
@@ -98,7 +95,7 @@ module Eggshell
 		attr_reader :vars
 
 		def expr_eval(struct)
-			return Eggshell::ExpressionEvaluator.expr_eval(struct, @vars, @funcs)
+			return @ee.evaluate(struct)
 		end
 
 		# Expands expressions (`\${}`) and macro calls (`\@@macro\@@`).
@@ -319,7 +316,7 @@ module Eggshell
 
 					# macro processing
 					if line[0] == '@'
-						macro, args, delim = Eggshell::Processor.parse_macro_start(line)
+						macro, args, delim = parse_macro_start(line)
 						mhandler = get_macro_handler(macro)
 						parse_tree.new_macro(line_norm, line_count, macro, args, delim, mhandler ? mhandler.collection_type(macro) : nil)
 						next
@@ -347,7 +344,7 @@ module Eggshell
 						stat = handler.can_handle(line)
 						next if stat == BH::RETRY
 						
-						parse_tree.new_block(handler, handler.current_type, line_norm, stat, line_count)
+						parse_tree.new_block(handler, handler.current_type, line_norm, stat, line_count, self)
 						found = true
 						_trace "(#{handler.current_type}->#{handler}) #{line} -> #{stat}"
 						break
@@ -355,7 +352,7 @@ module Eggshell
 
 					if !found
 						@blocks_map['p'].can_handle('p.')
-						parse_tree.new_block(@blocks_map['p'], 'p', line_norm, BH::COLLECT, line_count)
+						parse_tree.new_block(@blocks_map['p'], 'p', line_norm, BH::COLLECT, line_count, self)
 					end
 				end
 				parse_tree.push_block
@@ -591,7 +588,7 @@ module Eggshell
 			buff.join('')
 		end
 
-		def self.parse_block_start(line)
+		def parse_block_start(line)
 			block_type = nil
 			args = []
 
@@ -604,8 +601,8 @@ module Eggshell
 					params = line[0...idx1+1].strip
 					line = line[idx1+2..line.length] || ''
 					if params != ''
-						struct = ExpressionEvaluator.struct(params)
-						args = struct[0][2]
+						struct = @ee.parse(params)
+						args = @ee.evaluate([[:array, struct[0][2]]])
 					end
 				end
 			else
@@ -623,7 +620,7 @@ module Eggshell
 			[block_type, args, line]
 		end
 
-		def self.parse_macro_start(line)
+		def parse_macro_start(line)
 			macro = nil
 			args = []
 			delim = nil
@@ -631,7 +628,7 @@ module Eggshell
 			# either macro is a plain '@macro' or it has parameters/opening brace
 			if line.index(' ') || line.index('(') || line.index('{')
 				# since the macro statement is essentially a function call, parse the line as an expression to get components
-				expr_struct = ExpressionEvaluator.struct(line)
+				expr_struct = @ee.parse(line)
 				fn = expr_struct.shift
 				if fn.is_a?(Array) && (fn[0] == :fn || fn[0] == :var)
 					macro = fn[1][1..fn[1].length]

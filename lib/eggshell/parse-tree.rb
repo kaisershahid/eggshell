@@ -66,8 +66,8 @@ class Eggshell::ParseTree
 		return false
 	end
 
-	def new_block(handler, type, line_obj, consume_mode, line_start)
-		block_type, args, line = Eggshell::Processor.parse_block_start(line_obj.line)
+	def new_block(handler, type, line_obj, consume_mode, line_start, eggshell)
+		block_type, args, line = eggshell.parse_block_start(line_obj.line)
 		nline = Eggshell::Line.new(line, line_obj.tab_str, line_obj.indent_lvl, line_obj.line_num)
 
 		if consume_mode != BH::DONE
