@@ -15,11 +15,26 @@ module Eggshell; class ExpressionEvaluator
 		"\\'" => "'",
 		'\\"' => '"'
 	}.freeze
+
+	OP_ASSIGN = '='.to_sym
+	OP_EQQ = '==='.to_sym
+	OP_EQ = '=='.to_sym
+	OP_NEQ = '!='.to_sym
+	OP_MATCH = '=~'.to_sym
+	OP_NMATCH = '!=~'.to_sym
+	OP_MULTIPLY = '*'.to_sym
+	OP_DIVIDE = '/'.to_sym
+	OP_ADD = '+'.to_sym
+	OP_SUBTRACT = '-'.to_sym
 	
+	# Values give corresponding order of precedence
 	OPERATOR_MAP = {
-		'='.to_sym => 1000,
-		'=='.to_sym => 999,
-		'!='.to_sym => 999,
+		OP_ASSIGN => 1000,
+		OP_EQQ => 999,
+		OP_EQ => 998,
+		OP_NEQ => 998,
+		OP_MATCH => 997,
+		OP_NMATCH => 997,
 		'<'.to_sym => 990,
 		'<='.to_sym => 990,
 		'>'.to_sym => 990,
@@ -31,12 +46,12 @@ module Eggshell; class ExpressionEvaluator
 		'~'.to_sym => 200,
 		'&'.to_sym => 200,
 		'|'.to_sym => 199,
-		'*'.to_sym => 150,
-		'/'.to_sym => 150,
+		OP_MULTIPLY => 150,
+		OP_DIVIDE => 150,
 		'%'.to_sym => 150,
 		'^'.to_sym => 150,
-		'+'.to_sym => 100,
-		'-'.to_sym => 100,
+		OP_ADD => 100,
+		OP_SUBTRACT => 100,
 		'&&'.to_sym => 99,
 		'||'.to_sym => 99
 	}.freeze
@@ -47,6 +62,8 @@ module Eggshell; class ExpressionEvaluator
 		@cache = {}
 		@parser = Parser::DefaultParser.new
 		#@evaluator = Evaluator.new(@vars, @funcs)
+		@func_whitelist = {}
+		@func_wl_alias = {}
 	end
 	
 	# Maps 1 or more virtual function names to a handler.
@@ -75,42 +92,147 @@ module Eggshell; class ExpressionEvaluator
 			@funcs["#{ns}:"] = handler
 		end
 	end
+	
+	# Registers 1+ getters and/or setters for a given class/module, avoiding
+	# need to alias or proxy methods to use `get_` and `set_` names.
+	def register_function_whitelist(clz, getters, setters = nil)
+		if !clz.is_a?(String)
+			clz = clz.name if clz.is_a?(Class)
+			#clz = clz.name if clz.is_a?(Class)
+		end
+		@func_whitelist[clz] = {:get => {}, :set => {}}
+		if getters.is_a?(Array)
+			getters.each do |get|
+				@func_whitelist[clz][:get][get] = true
+			end
+		end
+		if setters.is_a?(Array)
+			setters.each do |set|
+				@func_whitelist[clz][:set][set] = true
+			end
+		end
+	end
+	
+	# The function whitelist expects a given object's class to be a direct
+	# mapping into the whitelist. Use this method to register all super classes
+	# and interfaces of the given object that can be looked up if a mapping
+	# fails.
+	def register_function_alias(obj)
+		clz = obj.is_a?(Class) ? obj : obj.class
+		ptr = []
+		clz.ancestors.each do |anc|
+			next if anc == clz
+			ptr << anc.name
+		end
+		@func_wl_alias[clz.name] = ptr
+	end
+	
+	def resolve_function_alias(obj)
+		clz = obj.is_a?(Class) ? obj.name : obj.class.name
+		return @func_wl_alias[clz] || []
+	end
+	
+	def has_function_alias(obj, func_name, type = :get)
+		clz = obj.is_a?(Class) ? obj.name : obj.class.name
+		if @func_whitelist[clz] && @func_whitelist[clz][type][func_name]
+			return true
+		end
+		
+		ret = false
+		if @func_wl_alias[clz]
+			@func_wl_alias[clz].each do |ali|
+				ali = @func_whitelist[ali]
+				if ali && ali[type][func_name]
+					ret = true
+					break
+				end
+			end
+		end
+		
+		return ret
+	end
+	
+	def get_function_aliases
+		ret = []
+		@func_whitelist.each do |clz, map|
+			ret << clz
+			ret << "\tgetters: #{map[:get].keys.join(', ')}"
+			ret << "\tsetters: #{map[:set].keys.join(', ')}"
+		end
+		@func_wl_alias.each do |clz, arr|
+			ret << clz
+			arr.each do |ali|
+				star = @func_whitelist[ali] ? ' *' : ''
+				ret << "\t=> #{ali}#{star}"
+			end
+		end
+		ret
+	end
 
 	attr_reader :vars, :funcs, :parser
 
 	def parse(statement, cache = true)
-		parsed = @cache[statement]
-		return parsed if cache && parsed
+		if cache
+			parsed = @cache[statement]
+			return parsed if parsed
+		end
 
-		parsed = @parser.parse(statement)
-		@cache[statement] = parsed if cache
-		return parsed
+		@cache[statement] = @parser.parse(statement)
+		return @cache[statement].clone
 	end
 
 	def evaluate(statement, do_parse = true, cache = true, vtable = nil, ftable = nil)
 		vtable = @vars if !vtable.is_a?(Hash)
 		ftable = @funcs if !ftable.is_a?(Hash)
 		parsed = statement
-
+		#$stderr.write "!!! #{vtable.inspect} // #{@vars.inspect} !!!\n"
+		#$stderr.write "parsed = #{parsed.inspect}||vtable=#{vtable.inspect}\n"
 		if !statement.is_a?(Array)
 			return statement if !do_parse || !statement.is_a?(String)
 			parsed = parse(statement, cache)
+		elsif parsed[0].is_a?(Symbol)
+			parsed = [parsed]
+			#$stderr.write "^^ fixed up\n"
 		end
 
 		ret = nil
 		parsed.each do |frag|
 			ftype = frag[0]
 			if ftype == :op
-				op_val = frag[1][0].is_a?(Array) ? evaluate([frag[1][0]], false) : frag[1][0]
-				z = 1
-				while z < frag[1].length
-					op = frag[1][z]
-					rop = frag[1][z+1]
-					rop = evaluate([rop]) if rop.is_a?(Array)
-					op_val = self.class.op_eval(op_val, op, rop)
+				# [:op, [operand, operator, operand(, operator, operand, ...)]]
+				# z contains the start index of the operator-operand list. if the first operator is '=',
+				# reserve first operand as var reference and evaluate everything after '=' before storing
+				# into var ref
+				z = 0
+				oplist = frag[1]
+				if oplist[1] == OP_ASSIGN
+					if !oplist[0].is_a?(Array) || oplist[0][0] != :var
+						raise Exception.new("Illegal assignment to non-variable: #{frag[1][0].inspect}")
+					end
+					z = 2
+				end
+
+				op_val = oplist[z]
+				if op_val.is_a?(Array)
+					op_val = op_val[0] == :var ? var_access(op_val) : evaluate([oplist[z]], false)
+				end
+
+				z += 1
+				while z < oplist.length
+					op = oplist[z]
+					rop = oplist[z+1]
+					if rop.is_a?(Array)
+						rop = rop[0] == :var ? var_access(rop) : evaluate([rop])
+					end
+					op_val = self.class.op_eval(op_val, op.to_sym, rop)
 					z += 2
 				end
 				ret = op_val
+				
+				# var assignment; return true for successful set or false otherwise
+				if oplist[1] == OP_ASSIGN
+					ret = var_access(oplist[0], nil, ret)
+				end
 			elsif ftype == :op_tern
 				cond = frag[1].is_a?(Array) ? evaluate(frag[1]) : frag[1]
 				if cond
@@ -147,7 +269,8 @@ module Eggshell; class ExpressionEvaluator
 					ret = handler.exec_func(name, frag[2])
 				end
 			elsif ftype == :var
-				ret = var_get(frag, false, vtable)
+				#$stderr.write "<<< VAR\n"
+				ret = var_access(frag, vtable)[0]
 			elsif ftype == :group
 				ret = evaluate(frag[1], false, cache, vtable)
 			elsif ftype == :array
@@ -179,121 +302,178 @@ module Eggshell; class ExpressionEvaluator
 		ret
 	end
 	
-	# @todo have one set for strings, one set for numbers, and a general set for everything else
-	# @todo what to do with unsupported ops?
 	def self.op_eval(lop, op, rop)
-		if (lop.is_a?(Numeric) && rop.is_a?(Numeric)) || lop.is_a?(rop.class)
-			op = op.to_s
-			case op
-			when '==='
-				return lop === rop
-			when '=='
-				return lop == rop
-			when '!='
-				return lop != rop
-			when '+'
-				return lop + rop
-			when '-'
-				return lop - rop
-			when '/'
-				return lop / rop
-			when '*'
-				return lop * rop
-			when '<<'
-				return lop << rop
-			when '>>'
-				return lop >> rop
-			when '<'
-				return lop < rop
-			when '<='
-				return lop <= rop
-			when '>'
-				return lop > rop
-			when '>='
-				return lop >= rop
-			when '|'
-				return lop | rop
-			when '||'
-				return lop || rop
-			when '&'
-				return lop & rop
-			when '&&'
-				return lop && rop
-			when '%'
-				return lop % rop
-			when '^'
-				return lop ^ rop
-			when '='
-				# @todo assign rop to lop
+		#$stderr.write "op_eval:\n\t#{lop.inspect} #{op.inspect} #{rop.inspect}\n"
+		if (lop.is_a?(Numeric) && rop.is_a?(Numeric))
+			if op == OP_MATCH || op == OP_NMATCH
+				raise Exception.new("'#{op}' can only be used with strings -- #{lop} #{op} #{rop}")
 			end
+			return lop.send(op, rop)
+		elsif op == OP_EQQ
+			return lop === rop
+		elsif rop == :empty && (op == OP_EQ || op == OP_NEQ)
+			# essentially (lop == false || lop == nil || lop == '') [==|!=] true
+			# @todo other conditions to check empty?
+			return (lop == false || lop == nil || lop == '').send(op, true)
+		elsif lop.is_a?(String)
+			e = nil
+			if op == OP_MULTIPLY
+				if rop.is_a?(Numeric)
+					return lop * rop
+				else
+					e = "multiply string with numeric, #{rop.class} given"
+				end
+			elsif op == OP_MATCH || op == OP_NMATCH
+				if rop.is_a?(String)
+					m = lop.match(rop)
+					if op == OP_NMATCH
+						m = m == nil ? true : false
+					end
+					return m
+				else
+					e = "'#{op}' expects right operand to be string, #{rop.class} given"
+				end
+			elsif op == OP_ADD
+				return lop + rop
+			end
+					
+			raise Exception.new(e) if e
+		elsif lop.is_a?(Array)
+			if op == OP_MULTIPLY && rop.is_a?(Numeric)
+				return lop * rop
+			elsif (op == OP_ADD || op == OP_SUBTRACT) && rop.is_a?(Array)
+				return lop.send(op, rop)
+			end
+			raise Exception.new("unsupported operation: #{lop.class} #{op} #{rop.class}")
 		else
 			
 		end
 	end
 	
-	def var_get(var, do_ptr = false, vtable = nil)
+	# Gets or sets a variable reference. If reference is a string, an exact match is looked for
+	# in vars table, otherwise an array (complex reference) is expected. If a value is given
+	# in the `set_var` parameter, an attempt is made to assign the value (provided there's
+	# a suitable method to handle setting).
+	#
+	# For a complex variable reference, iteratively chains a parent var with a child variable
+	# identifier. The return value is an array that returns the resolved value, its parent var,
+	# and the final identifier. In the case of setting, the resolved value is {{true}} if a setter
+	# was found and {{false}} otherwise.
+	#
+	# @param String|Array var If a string, an exact match is attempted in vars table, 
+	# otherwise an array with a parsed variable expression is expected.
+	# @param Hash vtable Optional vars table. If `nil`, uses `@vars`.
+	# @param Object set_var If not equivalent to `:nope`, assumes some sort of assignment.
+	# A symbol is used as a check since symbols are not supported in expressions.
+	# @return Array A 3-element array in the following format: `[value, parent_var, child_var_ident]
+	def var_access(var, vtable = nil, set_var = :nope)
 		vtable = @vars if !vtable
 		if var.is_a?(String)
+			return :empty if var == 'empty'
 			if var.match(/^[a-zA-Z_][a-zA-Z0-9_\.]*$/)
-				return vtable[var] if vtable.has_key?(var)
+				if vtable.has_key?(var)
+					if set_var == :nope
+						return [vtable[var], nil, nil]
+					else
+						vtable[var] = set_var
+						return [true, nil, nil]
+					end
+				end
 			end
 			var = @parser.parse(var)
 		end
+		
+		return :empty if var[1] == 'empty'
 
 		ptr_lst = nil
 		ptr = vtable
-
 		i = 0
 		parts = var
-		# @todo if do_ptr, set it as parts.length - 1? (and avoid having to save ptr_lst)
-		while (i < parts.length)
+		set_point = set_var == :nope ? parts.length + 1 : parts.length - 1
+		while (i < parts.length && ptr != nil)
 			part = parts[i]
 			ptr_lst = ptr
 			if part == :var
 				key = parts[i+1]
-				if ptr.is_a?(Hash) && ptr[key]
-					ptr = ptr[key]
-					if ptr != nil
-						i += 2
-						next
+				if ptr.is_a?(Hash)
+					if i == set_point
+						ptr[key] = set_var
+						ptr = true
+					elsif ptr[key]
+						ptr = ptr[key]
+						if ptr != nil
+							i += 2
+							next
+						end
 					else
-						break
+						ptr = nil
 					end
 				else
 					ptr = nil
-					break
 				end
 			elsif part[0] == :index_access
 				idx = part[1]
 				if idx.is_a?(Array)
-					idx = var_get(idx)
+					idx = var_access(idx)[0]
 					if idx == nil
 						ptr = nil
 						break
 					end
 				end
-				if (ptr.is_a?(Array) || ptr.is_a?(Hash)) && ptr[idx]
-					ptr = ptr[idx]
+				if (ptr.is_a?(Array) || ptr.is_a?(Hash))
+					if i == set_point
+						ptr[idx] = set_var
+						ptr = true
+					else
+						ptr = ptr[idx]
+					end
 				else
 					ptr = nil
-					break
 				end
 			elsif part[0] == :member_access
-				mname = 'get_' + part[1]
-				if ptr.respond_to?(mname.to_sym)
-					ptr = ptr.send(mname.to_sym)
+				if ptr.is_a?(Hash)
+					if i == set_point
+						ptr[part[1]] = set_var
+						ptr = true
+					else
+						ptr = ptr[part[1]]
+					end
 				else
-					ptr = nil
-					break
+					prefix = 'get_'
+					type = :get
+					if i == set_point
+						prefix = 'set_'
+						type = :set
+					end
+
+					mname = (prefix + part[1]).to_sym
+					tgt = nil
+
+					if ptr.respond_to?(mname)
+						tgt = mname
+					elsif has_function_alias(ptr, part[1], type)
+						tgt = part[1].to_sym
+					end
+					if tgt
+						if type == :set
+							ptr.send(tgt, set_var)
+							ptr = true
+						else
+							ptr = ptr.send(tgt)
+						end
+					else
+						ptr = nil
+					end
 				end
 			elsif part[0] == :func
+				# @todo throw exception if this is set_point?
+				# @todo what happens when we have `var[something](fn_args)`
 				ptr = evaluate(part, false)
-				break if ptr == nil
 			end
 			i += 1
 		end
-		
-		return do_ptr ? ptr_lst : ptr
+		return [ptr, ptr_lst, parts[-1]]
+		#return do_ptr ? ptr_lst : ptr
 	end
 
 	def var_set(var, val)
@@ -307,3 +487,39 @@ end; end
 require_relative './expression-evaluator/lexer.rb'
 require_relative './expression-evaluator/parser.rb'
 require_relative './expression-evaluator/evaluator.rb'
+
+# --- move this to a test! --
+# class AClass < String
+# 	include Eggshell
+
+# 	def normal_getter()
+# 	end
+	
+# 	def another_method()
+# 	end
+	
+# 	def normal_setter(val)
+# 	end
+
+# 	def get_test()
+# 	end
+# end
+
+# class BClass < AClass
+# 	def scroopy_noopers
+# 	end
+# end
+
+# ee = Eggshell::ExpressionEvaluator.new
+# ee.register_function_whitelist(String, ['length'])
+# ee.register_function_whitelist(AClass, ['normal_getter'], ['normal_setter'])
+# ee.register_function_alias(AClass)
+# ee.register_function_alias(BClass)
+# aclass = AClass.new
+# bclass = BClass.new
+
+# puts "aclass.length ? #{ee.has_function_alias(aclass, 'length')}"
+# puts "aclass.normal_setter ? #{ee.has_function_alias(aclass, 'normal_setter', :set)}"
+# puts "bclass.normal_getter ? #{ee.has_function_alias(bclass, 'normal_getter', :get)}"
+# puts "bclass.another_method ? #{ee.has_function_alias(aclass, 'another_method', :get)}"
+# puts ee.get_function_aliases.join("\n")

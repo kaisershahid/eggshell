@@ -39,7 +39,7 @@ class Eggshell::ParseTree
 
 		if delim
 			@modes << (mode == MH::COLLECT_RAW_MACRO ? :macro_raw : macro)
-			@macro_delims << delim.reverse.gsub('[', ']').gsub('(', ')').gsub('{', '}')
+			@macro_delims << delim #delim.reverse.gsub('[', ']').gsub('(', ')').gsub('{', '}')
 			@macro_open << line
 			@macro_ptr << @ptr
 			# set ptr to entry's tree
@@ -59,7 +59,7 @@ class Eggshell::ParseTree
 			@macro_delims.pop
 			@macro_open.pop
 			@ptr = @macro_ptr.pop
-			@ptr[-1] << line_num
+			@ptr[-1][-1] = line_num
 			last_mode = @modes.pop
 			return true
 		end
@@ -90,7 +90,7 @@ class Eggshell::ParseTree
 	end
 
 	def push_block
-		if @modes[-1] == :block
+		if @modes[-1] == :block || @modes[-1] == :raw
 			if @cur_block
 				line_end = @cur_block[3]
 				line_end = @lines[-1].line_num if @lines[-1]

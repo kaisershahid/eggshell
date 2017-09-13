@@ -64,9 +64,8 @@ module Eggshell::Bundles::Basic
 			html = line.match(HTML_BLOCK)
 			if html
 				@block_type = 'html_block'
-
 				end_html = HTML_BLOCK_END["<#{html[1]}"]
-				end_html = "</#{html[1]}>$" if !end_html
+				end_html = "</#{html[1]}>" if !end_html
 				if line.match(end_html)
 					return BH::DONE
 				end
@@ -387,8 +386,14 @@ module Eggshell::Bundles::Basic
 				end
 
 				lines.each do |line_obj|
-					line = line_obj.is_a?(Eggshell::Line) ? line_obj.line : line_obj
-					indent = line_obj.indent_lvl
+					line = nil
+					indent = 0
+					if line_obj.is_a?(Eggshell::Line)
+						line = line_obj.line
+						indent = line_obj.indent_lvl
+					else
+						line = line_obj
+					end
 					ltype = line[0] == '-' ? 'ul' : 'ol'
 					line = line[1..line.length].strip
 
@@ -663,6 +668,10 @@ module Eggshell::Bundles::Basic
 			end
 		end
 
+		def collection_type(macro)
+			macro == 'raw' ? MH::COLLECT_RAW_MACRO : MH::COLLECT_NORMAL
+		end
+
 		def process(name, args, lines, out, call_depth = 0)
 			if name == '=' || name == 'var'
 				# @todo expand args[0]?
@@ -709,7 +718,7 @@ module Eggshell::Bundles::Basic
 							out << @eggshell.assemble(unit, call_depth + 1)
 						end
 					else
-						out << line
+						out << unit
 					end
 				end
 			elsif name == 'pipe'

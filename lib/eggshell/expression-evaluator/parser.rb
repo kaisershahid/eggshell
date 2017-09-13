@@ -15,6 +15,23 @@ module Parser
 	ST_ARRAY = 256
 	ST_INDEX_ACCESS = ST_ARRAY|ST_LABEL
 	
+	STATE_NAMES = {
+		0 => 'null',
+		1 => 'number',
+		2 => 'string',
+		4 => 'string_expression',
+		8 => 'string_block',
+		16 => 'label',
+		17 => 'label_call',
+		19 => 'label_member',
+		32 => 'operator',
+		33 => 'operator_tern',
+		64 => 'group',
+		128 => 'hash',
+		256 => 'array',
+		ST_INDEX_ACCESS => 'index_access'	
+	}.freeze
+	
 	CONSTS = {
 		'true' => true,
 		'false' => false,
@@ -50,9 +67,17 @@ module Parser
 		end
 
 		def emit(type, data = nil, ts = nil, te = nil)
+			lst = @state[-1]
+			# pop last state if appropriate
+			if type == :end
+				while @state[-1] == ST_OPERATOR || @state[-1] == ST_OPERATOR_TERN
+					@state.pop
+				end
+				return
+			end
+
 			word = data[ts...te].pack('c*')
 			@tokens << word # if type != :space
-			lst = @state[-1]
 			
 			# before inserting term, need to make sure it follows semantics of function/array
 			# @todo look out for case of '(,' or '[,'
@@ -143,7 +168,10 @@ module Parser
 			elsif type == :logical_op
 				# STORED AS: `[:op, [operand1, operator1, operand2, operator2, ...]]
 				# > @last_ptr holds entire structure, @ptr holds structure[1]
-				# @todo deal with - prefix
+				# @todo deal with '-' prefix
+				
+				# direct assignment unsupported for now, cast to equivalence
+				word = '==' if word == '='
 				@term_last.pop
 				raise Exception.new("expecting identifier after '#{@ptr[-1][1]}'") if @expect_label
 				if word == '?'
@@ -349,7 +377,7 @@ module Parser
 				end
 			elsif type == :space
 			else
-				puts "woooo"
+				$stderr.write "! parser else: #{word}\n"
 			end
 		end
 		
@@ -357,19 +385,34 @@ module Parser
 			reset
 			begin
 				@lexer.process(src)
+				emit(:end)
+				if @state[-1] != ST_NULL
+					err = []
+					@state[1..-1].each do |st|
+						err << STATE_NAMES[st]
+					end
+					raise Exception.new("Unbalanced state: #{err.join(' -> ')}")
+				end
 				@tree
-			rescue => ex
-				$stderr.write("parse exception: #{ex}\n")
+			rescue Exception => ex
+				$stderr.write("WARN: returning nil, parse exception for: #{src}\n#{ex}\n")
 				$stderr.write("\t#{ex.backtrace.join("\n\t")}\n")
+				debug
 				nil
 			end
 		end
 		
-		def debug
-			puts "STATE : #{@state.inspect}"
-			puts "TREE  : #{@tree.inspect}"
-			puts "  PTR : #{@ptr.inspect}"
-			puts "TOKENS: #{@tokens.inspect}"
+		def debug(io = nil)
+			io = $stderr if !io
+			io.write "STATE : "
+			@state.each do |st|
+				io.write STATE_NAMES[st]
+				io.write ", "
+			end
+			io.write "\n"
+			io.write "TREE  : #{@tree.inspect}\n"
+			io.write "  PTR : #{@ptr.inspect}\n"
+			io.write "TOKENS: #{@tokens.inspect}\n"
 		end
 	end
 	

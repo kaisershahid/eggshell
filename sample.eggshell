@@ -1,8 +1,21 @@
+@var('pxsize', 1)
+<html>
+
+<head>
+#! content within style is left as-is, except expressions are expanded. this is a comment btw
+<style type="text/css">
+.red { color: red; font-size: ${pxsize}px; }
+</style>
+</head>
+
+<body>
+
 This is a basic paragraph. [*This is bold*].
 Hard line break. [/This is italic./] [__This is underline in red|style=color:red__].
-[*[__This is bold underline!|style=color:blue__]|class=bold-clas*]
+[*[__This is bold underline!|style=color:blue__]|class=bold-class*]
 
-p({'class':'para-class','id': 'my-par-1'}). Explicit paragraph with `class` and `id` attributes.
+p({'class':'para-class','id': 'my-par-1'}).
+Explicit paragraph with `class` and `id` attributes.
 
 h1. Header 1
 
@@ -22,4 +35,23 @@ h1. Expressions!!!
 `num > 1 ? ${num > 1 ? 'yes' : 'no'}`
 `num - map['newInt'] = ${num - map['newInt']}`
 
-@include("path/to/another_file.eggshell")
+@capture('cap', true) {
+Captured content
+}
+
+#! we need to explicitly start a list to add items from a loop
+ul.
+@for({'items': [1,2,3,4]}) {
+- list items collected into single list: ${item}
+}
+
+@for({'items': [1,2,3,4]}, 'collect') {
+- list items collected into separate list: ${item}
+}
+
+raw.${cap}
+
+@include("sample.include.eggshell")
+
+</body>
+</html>

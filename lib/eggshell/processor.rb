@@ -302,7 +302,7 @@ module Eggshell
 					
 					line_norm = Line.new(line, tab_str, _ind, line_start, oline.chomp)
 					line_start = line_count
-
+#$stderr.write ">> mode(#{parse_tree.mode}): #{line}\n"
 					if parse_tree.mode == :raw
 						stat = parse_tree.collect(line_norm)
 						next if stat != BH::RETRY
@@ -317,6 +317,7 @@ module Eggshell
 					# macro processing
 					if line[0] == '@'
 						macro, args, delim = parse_macro_start(line)
+						#$stderr.write "-- macro: #{macro} (#{line})\n"
 						mhandler = get_macro_handler(macro)
 						parse_tree.new_macro(line_norm, line_count, macro, args, delim, mhandler ? mhandler.collection_type(macro) : nil)
 						next
@@ -400,7 +401,6 @@ module Eggshell
 			last_line = 0
 			last_macro = nil
 			deferred = nil
-
 			parse_tree.each do |unit|
 				if unit.is_a?(String)
 					out << unit
@@ -418,11 +418,11 @@ module Eggshell
 						_warn "handler not found: #{unit[0]} -> #{unit[1]}"
 						next
 					end
-
+					#$stderr.write "#{unit[0]}:#{unit[1]}\n\t#{unit[2].inspect}\n"
 					args_o = unit[2] || []
 					args = []
 					args_o.each do |arg|
-						args << (arg.is_a?(Array) ? @@ee.evaluate([:array, arg]) : arg)
+						args << (arg.is_a?(Array) ? @ee.evaluate([arg]) : arg)
 					end
 
 					lines = unit[ParseTree::IDX_LINES]
@@ -621,6 +621,8 @@ module Eggshell
 			[block_type, args, line]
 		end
 
+		# @todo enhancement #1: allow same-line nesting of macros like `@macro(...) { @macro2 {` (and
+		# make sure to handle closing on same line like `} }`)
 		def parse_macro_start(line)
 			macro = nil
 			args = []
@@ -628,21 +630,26 @@ module Eggshell
 
 			# either macro is a plain '@macro' or it has parameters/opening brace
 			if line.index(' ') || line.index('(') || line.index('{')
+				# remove the end delimiter
+				m = line.match(/(\{[\/\(\[a-z]*)\s*$/)
+				if m
+					line = line[0...line.rindex(m[1])]
+				end
+				line = line[1..-1]
 				# since the macro statement is essentially a function call, parse the line as an expression to get components
 				expr_struct = @ee.parse(line)
 				fn = expr_struct.shift
-
 				if fn.is_a?(Array) && (fn[0] == :func || fn[0] == :var)
 					macro = fn[1]
 					args = fn[2] # @@ee.evaluate([:array, fn[2]])
-					if expr_struct[-1].is_a?(Array) && expr_struct[-1][0] == :brace_op
-						delim = expr_struct[-1][1]
+					if m
+						delim = m[1].reverse.gsub('{', '}').gsub('[', ']').gsub('(', ')')
 					end
 				end
 			else
 				macro = line[1..line.length]
 			end
-			
+
 			[macro, args, delim]
 		end
 

@@ -1,7 +1,7 @@
 
-# line 1 "lexer.ragel"
+# line 1 "lib/eggshell/expression-evaluator/lexer.ragel"
 
-# line 71 "lexer.ragel"
+# line 71 "lib/eggshell/expression-evaluator/lexer.ragel"
 
 # %
 
@@ -11,7 +11,7 @@ class Eggshell::ExpressionEvaluator::Lexer
 	def initialize(parser)
 		@parser = parser
 		
-# line 15 "lexer.rb"
+# line 15 "lib/eggshell/expression-evaluator/lexer.rb"
 class << self
 	attr_accessor :_eggshell_actions
 	private :_eggshell_actions, :_eggshell_actions=
@@ -30,8 +30,8 @@ class << self
 	private :_eggshell_key_offsets, :_eggshell_key_offsets=
 end
 self._eggshell_key_offsets = [
-	0, 2, 38, 43, 44, 46, 49, 51, 
-	52, 54, 55, 56, 58, 68
+	0, 2, 39, 40, 41, 48, 49, 51, 
+	54, 56, 57, 59, 61, 62, 64, 74
 ]
 
 class << self
@@ -39,15 +39,16 @@ class << self
 	private :_eggshell_trans_keys, :_eggshell_trans_keys=
 end
 self._eggshell_trans_keys = [
-	48, 57, 13, 32, 34, 36, 38, 39, 
-	43, 44, 45, 46, 58, 59, 60, 61, 
-	62, 63, 64, 91, 92, 93, 94, 124, 
-	9, 10, 40, 41, 42, 47, 48, 57, 
-	65, 95, 97, 122, 123, 125, 95, 65, 
-	90, 97, 122, 38, 48, 57, 46, 48, 
-	57, 48, 57, 58, 60, 61, 61, 61, 
-	61, 62, 34, 91, 93, 110, 114, 116, 
-	123, 125, 39, 41, 124, 0
+	48, 57, 13, 32, 33, 34, 36, 38, 
+	39, 43, 44, 45, 46, 58, 59, 60, 
+	61, 62, 63, 64, 91, 92, 93, 94, 
+	124, 9, 10, 40, 41, 42, 47, 48, 
+	57, 65, 95, 97, 122, 123, 125, 61, 
+	126, 95, 48, 57, 65, 90, 97, 122, 
+	38, 48, 57, 46, 48, 57, 48, 57, 
+	58, 60, 61, 61, 126, 61, 61, 62, 
+	34, 91, 93, 110, 114, 116, 123, 125, 
+	39, 41, 124, 0
 ]
 
 class << self
@@ -55,8 +56,8 @@ class << self
 	private :_eggshell_single_lengths, :_eggshell_single_lengths=
 end
 self._eggshell_single_lengths = [
-	0, 22, 1, 1, 0, 1, 0, 1, 
-	0, 1, 1, 0, 8, 1
+	0, 23, 1, 1, 1, 1, 0, 1, 
+	0, 1, 0, 2, 1, 0, 8, 1
 ]
 
 class << self
@@ -64,8 +65,8 @@ class << self
 	private :_eggshell_range_lengths, :_eggshell_range_lengths=
 end
 self._eggshell_range_lengths = [
-	1, 7, 2, 0, 1, 1, 1, 0, 
-	1, 0, 0, 1, 1, 0
+	1, 7, 0, 0, 3, 0, 1, 1, 
+	1, 0, 1, 0, 0, 1, 1, 0
 ]
 
 class << self
@@ -73,8 +74,8 @@ class << self
 	private :_eggshell_index_offsets, :_eggshell_index_offsets=
 end
 self._eggshell_index_offsets = [
-	0, 2, 32, 36, 38, 40, 43, 45, 
-	47, 49, 51, 53, 55, 65
+	0, 2, 33, 35, 37, 42, 44, 46, 
+	49, 51, 53, 55, 58, 60, 62, 72
 ]
 
 class << self
@@ -82,15 +83,16 @@ class << self
 	private :_eggshell_indicies, :_eggshell_indicies=
 end
 self._eggshell_indicies = [
-	1, 0, 3, 3, 4, 5, 6, 4, 
-	9, 10, 9, 10, 12, 10, 13, 14, 
-	15, 8, 16, 17, 18, 17, 8, 20, 
-	3, 7, 8, 11, 5, 5, 19, 2, 
-	5, 5, 5, 21, 8, 22, 11, 23, 
-	25, 11, 24, 1, 26, 16, 27, 8, 
-	23, 28, 23, 8, 23, 8, 23, 29, 
-	29, 29, 29, 29, 29, 29, 29, 29, 
-	22, 8, 22, 0
+	1, 0, 3, 3, 4, 5, 6, 7, 
+	5, 10, 11, 10, 11, 13, 11, 14, 
+	15, 16, 9, 17, 18, 19, 18, 9, 
+	21, 3, 8, 9, 12, 6, 6, 20, 
+	2, 23, 22, 9, 24, 6, 6, 6, 
+	6, 25, 9, 22, 12, 24, 27, 12, 
+	26, 1, 28, 17, 29, 9, 24, 30, 
+	9, 24, 9, 24, 9, 24, 31, 31, 
+	31, 31, 31, 31, 31, 31, 31, 22, 
+	9, 22, 0
 ]
 
 class << self
@@ -98,10 +100,10 @@ class << self
 	private :_eggshell_trans_targs, :_eggshell_trans_targs=
 end
 self._eggshell_trans_targs = [
-	1, 6, 1, 1, 1, 2, 3, 1, 
-	1, 4, 1, 5, 7, 8, 9, 11, 
-	1, 1, 12, 1, 13, 1, 1, 1, 
-	1, 0, 1, 1, 10, 1
+	1, 8, 1, 1, 2, 1, 4, 5, 
+	1, 1, 6, 1, 7, 9, 10, 11, 
+	13, 1, 1, 14, 1, 15, 1, 3, 
+	1, 1, 1, 0, 1, 1, 12, 1
 ]
 
 class << self
@@ -109,10 +111,10 @@ class << self
 	private :_eggshell_trans_actions, :_eggshell_trans_actions=
 end
 self._eggshell_trans_actions = [
-	39, 0, 25, 23, 15, 0, 0, 13, 
-	7, 0, 19, 5, 0, 0, 0, 0, 
-	17, 9, 0, 11, 0, 31, 37, 33, 
-	27, 0, 29, 35, 0, 21
+	39, 0, 25, 23, 0, 15, 0, 0, 
+	13, 7, 0, 19, 5, 0, 0, 0, 
+	0, 17, 9, 0, 11, 0, 37, 0, 
+	33, 31, 27, 0, 29, 35, 0, 21
 ]
 
 class << self
@@ -121,7 +123,7 @@ class << self
 end
 self._eggshell_to_state_actions = [
 	0, 1, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0
+	0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 class << self
@@ -130,7 +132,7 @@ class << self
 end
 self._eggshell_from_state_actions = [
 	0, 3, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0
+	0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 class << self
@@ -138,8 +140,8 @@ class << self
 	private :_eggshell_eof_trans, :_eggshell_eof_trans=
 end
 self._eggshell_eof_trans = [
-	1, 0, 22, 23, 24, 25, 27, 28, 
-	24, 24, 24, 24, 23, 23
+	1, 0, 23, 25, 26, 23, 25, 27, 
+	29, 30, 25, 25, 25, 25, 23, 23
 ]
 
 class << self
@@ -161,7 +163,7 @@ end
 self.eggshell_en_main = 1;
 
 
-# line 80 "lexer.ragel"
+# line 80 "lib/eggshell/expression-evaluator/lexer.ragel"
 		# %
 	end
 	
@@ -169,7 +171,7 @@ self.eggshell_en_main = 1;
 		data = source.is_a?(String) ? source.unpack("c*") : source
 		eof = data.length
 		
-# line 173 "lexer.rb"
+# line 175 "lib/eggshell/expression-evaluator/lexer.rb"
 begin
 	p ||= 0
 	pe ||= data.length
@@ -179,9 +181,9 @@ begin
 	act = 0
 end
 
-# line 87 "lexer.ragel"
+# line 87 "lib/eggshell/expression-evaluator/lexer.ragel"
 		
-# line 185 "lexer.rb"
+# line 187 "lib/eggshell/expression-evaluator/lexer.rb"
 begin
 	_klen, _trans, _keys, _acts, _nacts = nil
 	_goto_level = 0
@@ -211,7 +213,7 @@ begin
 		begin
 ts = p
 		end
-# line 215 "lexer.rb"
+# line 217 "lib/eggshell/expression-evaluator/lexer.rb"
 		end # from state action switch
 	end
 	if _trigger_goto
@@ -284,7 +286,7 @@ when 2 then
 te = p+1
 		end
 when 3 then
-# line 31 "lexer.ragel"
+# line 31 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -292,7 +294,7 @@ te = p+1
 		 end
 		end
 when 4 then
-# line 35 "lexer.ragel"
+# line 35 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -300,7 +302,7 @@ te = p+1
 		 end
 		end
 when 5 then
-# line 39 "lexer.ragel"
+# line 39 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -308,7 +310,7 @@ te = p+1
 		 end
 		end
 when 6 then
-# line 43 "lexer.ragel"
+# line 43 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -316,7 +318,7 @@ te = p+1
 		 end
 		end
 when 7 then
-# line 47 "lexer.ragel"
+# line 47 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -324,7 +326,7 @@ te = p+1
 		 end
 		end
 when 8 then
-# line 51 "lexer.ragel"
+# line 51 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -332,7 +334,7 @@ te = p+1
 		 end
 		end
 when 9 then
-# line 55 "lexer.ragel"
+# line 55 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -340,7 +342,7 @@ te = p+1
 		 end
 		end
 when 10 then
-# line 59 "lexer.ragel"
+# line 59 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -348,7 +350,7 @@ te = p+1
 		 end
 		end
 when 11 then
-# line 63 "lexer.ragel"
+# line 63 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -356,7 +358,7 @@ te = p+1
 		 end
 		end
 when 12 then
-# line 67 "lexer.ragel"
+# line 67 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p+1
  begin 
@@ -364,7 +366,7 @@ te = p+1
 		 end
 		end
 when 13 then
-# line 19 "lexer.ragel"
+# line 19 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p
 p = p - 1; begin  
@@ -372,7 +374,7 @@ p = p - 1; begin
 		 end
 		end
 when 14 then
-# line 23 "lexer.ragel"
+# line 23 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p
 p = p - 1; begin  
@@ -380,7 +382,7 @@ p = p - 1; begin
 		 end
 		end
 when 15 then
-# line 27 "lexer.ragel"
+# line 27 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p
 p = p - 1; begin  
@@ -388,7 +390,7 @@ p = p - 1; begin
 		 end
 		end
 when 16 then
-# line 31 "lexer.ragel"
+# line 31 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p
 p = p - 1; begin 
@@ -396,7 +398,7 @@ p = p - 1; begin
 		 end
 		end
 when 17 then
-# line 51 "lexer.ragel"
+# line 51 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p
 p = p - 1; begin 
@@ -404,7 +406,7 @@ p = p - 1; begin
 		 end
 		end
 when 18 then
-# line 67 "lexer.ragel"
+# line 67 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
 te = p
 p = p - 1; begin 
@@ -412,14 +414,14 @@ p = p - 1; begin
 		 end
 		end
 when 19 then
-# line 19 "lexer.ragel"
+# line 19 "lib/eggshell/expression-evaluator/lexer.ragel"
 		begin
  begin p = ((te))-1; end
  begin  
 			@parser.emit(:number_literal, data, ts, te) 
 		 end
 		end
-# line 423 "lexer.rb"
+# line 425 "lib/eggshell/expression-evaluator/lexer.rb"
 			end # action switch
 		end
 	end
@@ -439,7 +441,7 @@ when 0 then
 # line 1 "NONE"
 		begin
 ts = nil;		end
-# line 443 "lexer.rb"
+# line 445 "lib/eggshell/expression-evaluator/lexer.rb"
 		end # to state action switch
 	end
 	if _trigger_goto
@@ -466,7 +468,7 @@ end
 	end
 	end
 
-# line 88 "lexer.ragel"
+# line 88 "lib/eggshell/expression-evaluator/lexer.ragel"
 		# %
 	end
 end
