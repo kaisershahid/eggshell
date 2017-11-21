@@ -10,4 +10,5 @@ Gem::Specification.new do |s|
 	s.email       = 'kaisershahid@gmail.com'
 	s.files       = FileList["bin/*", "lib/**/*.rb"]
 	s.homepage    = 'https://acmedinotech.com/products/eggshell'
+	# @todo dependencies: i18n
 end

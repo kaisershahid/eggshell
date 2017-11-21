@@ -677,12 +677,13 @@ module Eggshell::Bundles::Basic
 				# @todo expand args[0]?
 				if args[0]
 					val = nil
+					lvl = args[2] || 0
 					if args[1].is_a?(Array) && args[1][0].is_a?(Symbol)
 						val = @eggshell.expr_eval(args[1])
 					else
 						val = args[1]
 					end
-					@eggshell.vars[args[0]] = val
+					@eggshell.vars[args[0]] = val, 0
 				end
 			elsif name == '!'
 				block_name = args[0]
@@ -737,12 +738,14 @@ module Eggshell::Bundles::Basic
 					if File.exists?(inc)
 						lines = IO.readlines(inc, $/, opts)
 						@vars[:include_stack] << inc
+						@vars.push
 						begin
 							buff << @eggshell.process(lines, 0, call_depth + 1)
 							@eggshell._debug("include: 200 #{inc}")
 						rescue => ex
 							@eggshell._error("include: 500 #{inc}: #{ex.message}#{ex.backtrace.join("\n\t")}")
 						end
+						@vars.pop
 						
 						@vars[:include_stack].pop
 						break

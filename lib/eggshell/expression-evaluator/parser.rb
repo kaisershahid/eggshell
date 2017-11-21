@@ -98,6 +98,7 @@ module Parser
 			end
 
 			# @todo need to track last literal/var/func for operator syntax check
+			# @todo need to catch 'term term' (1+ whitespace)
 			if type == :escape
 				raise Exception.new("expecting identifier after '#{@ptr[-1][1]}'") if @expect_label
 				raise Exception.new("escaping character outside of string") if lst != ST_STRING
@@ -188,12 +189,11 @@ module Parser
 					if prec_r > prec_l
 						# need to group next 2 terms since this operator has higher precedence
 						nop = [:op, [@ptr.pop]]
-						@state << ST_OPERATOR
 						@ptr << nop
 						@last_ptr << @ptr
 						@ptr = nop[1]
 					elsif prec_l > prec_r
-						# check if @last_ptr[-1] is an op; pop if so
+						# check if @last_ptr[-2] is an op; pop if so
 						type = @last_ptr[-2].is_a?(Array) ? @last_ptr[-2][0][0] : nil
 						if type == :op
 							@state.pop

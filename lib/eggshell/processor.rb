@@ -23,6 +23,8 @@ module Eggshell
 
 			@noop_macro = Eggshell::MacroHandler::Defaults::NoOpHandler.new
 			@noop_block = Eggshell::BlockHandler::Defaults::NoOpHandler.new
+			
+			@directives = {}
 		end
 		
 		attr_reader :context
@@ -214,6 +216,10 @@ module Eggshell
 		
 		COMMENT = '#!'
 		DIRECTIVE = '#>'
+		
+		def get_directive(key)
+			return @directives[key]
+		end
 
 		def preprocess(lines, line_count = 0)
 			line_start = line_count
@@ -245,6 +251,10 @@ module Eggshell
 
 					hdr = oline.lstrip[0..1]
 					if hdr == COMMENT
+						next
+					elsif hdr == DIRECTIVE
+						k,v = oline[2...oline.length].split('=', 2)
+						@directives[k] = v
 						next
 					end
 

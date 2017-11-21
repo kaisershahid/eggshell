@@ -17,15 +17,15 @@ module Eggshell; class ExpressionEvaluator
 	}.freeze
 
 	OP_ASSIGN = '='.to_sym
-	OP_EQQ = '==='.to_sym
-	OP_EQ = '=='.to_sym
-	OP_NEQ = '!='.to_sym
-	OP_MATCH = '=~'.to_sym
+	OP_EQQ = :===
+	OP_EQ = :==
+	OP_NEQ = :!=
+	OP_MATCH = :=~
 	OP_NMATCH = '!=~'.to_sym
-	OP_MULTIPLY = '*'.to_sym
-	OP_DIVIDE = '/'.to_sym
-	OP_ADD = '+'.to_sym
-	OP_SUBTRACT = '-'.to_sym
+	OP_MULTIPLY = :*
+	OP_DIVIDE = :/
+	OP_ADD = :+
+	OP_SUBTRACT = :-
 	
 	# Values give corresponding order of precedence
 	OPERATOR_MAP = {
@@ -198,6 +198,7 @@ module Eggshell; class ExpressionEvaluator
 		ret = nil
 		parsed.each do |frag|
 			ftype = frag[0]
+			puts "ftype=#{ftype}"
 			if ftype == :op
 				# [:op, [operand, operator, operand(, operator, operand, ...)]]
 				# z contains the start index of the operator-operand list. if the first operator is '=',
@@ -224,7 +225,9 @@ module Eggshell; class ExpressionEvaluator
 					if rop.is_a?(Array)
 						rop = rop[0] == :var ? var_access(rop) : evaluate([rop])
 					end
+					ov = op_val
 					op_val = self.class.op_eval(op_val, op.to_sym, rop)
+					puts "#{ov} #{op} #{rop} = #{op_val}"
 					z += 2
 				end
 				ret = op_val
@@ -487,39 +490,3 @@ end; end
 require_relative './expression-evaluator/lexer.rb'
 require_relative './expression-evaluator/parser.rb'
 require_relative './expression-evaluator/evaluator.rb'
-
-# --- move this to a test! --
-# class AClass < String
-# 	include Eggshell
-
-# 	def normal_getter()
-# 	end
-	
-# 	def another_method()
-# 	end
-	
-# 	def normal_setter(val)
-# 	end
-
-# 	def get_test()
-# 	end
-# end
-
-# class BClass < AClass
-# 	def scroopy_noopers
-# 	end
-# end
-
-# ee = Eggshell::ExpressionEvaluator.new
-# ee.register_function_whitelist(String, ['length'])
-# ee.register_function_whitelist(AClass, ['normal_getter'], ['normal_setter'])
-# ee.register_function_alias(AClass)
-# ee.register_function_alias(BClass)
-# aclass = AClass.new
-# bclass = BClass.new
-
-# puts "aclass.length ? #{ee.has_function_alias(aclass, 'length')}"
-# puts "aclass.normal_setter ? #{ee.has_function_alias(aclass, 'normal_setter', :set)}"
-# puts "bclass.normal_getter ? #{ee.has_function_alias(bclass, 'normal_getter', :get)}"
-# puts "bclass.another_method ? #{ee.has_function_alias(aclass, 'another_method', :get)}"
-# puts ee.get_function_aliases.join("\n")
