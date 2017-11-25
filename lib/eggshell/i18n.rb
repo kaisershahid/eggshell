@@ -1,3 +1,6 @@
+<<-DOC
+
+DOC
 module Eggshell; module I18n
 	"""
 	Structure of dictionary:
@@ -48,6 +51,20 @@ module Eggshell; module I18n
 		
 		# @param String locale If {{nil}}, use fallback locale.
 		def set_entry(key, entry, locale = nil)
+			locale = @fallback if !locale
+			key = key.to_s if key.is_a?(Symbol)
+			key = key.split('.') if key.is_a?(String)
+			@dict[locale] = {} if !@dict[locale]
+			if key.length == 1
+				@dict[locale][key[0]] = entry
+			else
+				ptr = @dict[locale]
+				last_key = key.pop
+				key.each do |k|
+					ptr = ptr[k] || {}
+				end
+				ptr[last_key] = entry
+			end
 		end
 		
 		#protected
@@ -87,5 +104,13 @@ module Eggshell; module I18n
 	end
 	
 	module Storage
+		def connect(endpoint, opts = {})
+		end
+
+		def get_dictionary()
+		end
+
+		def save!
+		end
 	end
 end; end
